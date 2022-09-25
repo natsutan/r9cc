@@ -2,3 +2,5 @@
 .idea/
 r9cc/.idea
 r9cc/target
+r9cc/tmp
+r9cc/tmp.s
