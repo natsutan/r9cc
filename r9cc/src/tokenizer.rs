@@ -24,17 +24,41 @@ impl fmt::Display for TokenError {
 
 pub struct Tokenizer {
     tokens: Vec<Token>,
+    pos :usize
 }
 
 impl Tokenizer {
     pub fn new() -> Tokenizer {
         Tokenizer {
-            tokens: vec![]
+            tokens: vec![],
+            pos: 0
         }
     }
 
     pub fn tokenize(&mut self, input_str :&String) {
         self.tokens = tokenize(input_str);
+    }
+
+    pub fn get(&mut self) -> Token {
+        if self.pos == self.tokens.len() {
+            Token::EOF()
+        } else {
+            let t = self.tokens[self.pos].clone();
+            self.pos += 1;
+            t
+        }
+    }
+
+    pub fn expected_number(&mut self) -> Result<i64, TokenError> {
+        let token = self.get();
+        match token {
+            Token::Integer(n) => Ok(n),
+            _ => Err(TokenError{ err: format!("{:?} is not number.", token)}),
+        }
+    }
+
+    pub fn at_eof(&self) -> bool {
+        self.tokens[self.pos] == Token::EOF()
     }
 }
 
@@ -108,7 +132,7 @@ mod tests {
             ]
         );
     }
-
+    #[test]
     fn test_f1() {
         let mut tokenizer : Tokenizer = Tokenizer::new();
         tokenizer.tokenize(&"5 + 20-4".to_string());
@@ -124,5 +148,19 @@ mod tests {
             ]
         );
     }
-
+    #[test]
+    fn test_get() {
+        let mut tokenizer : Tokenizer = Tokenizer::new();
+        tokenizer.tokenize(&"5+20".to_string());
+        let t0 = tokenizer.get();
+        assert_eq!(t0, Token::Integer(5));
+        let t1 = tokenizer.get();
+        assert_eq!(t1, Token::Operator("+".to_string()));
+        let t2 = tokenizer.get();
+        assert_eq!(t2, Token::Integer(20));
+        let t3 = tokenizer.get();
+        assert_eq!(t3, Token::EOF());
+        let t4 = tokenizer.get();
+        assert_eq!(t4, Token::EOF());
+    }
 }
