@@ -19,9 +19,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let path = Path::new("tmp.s");
     let input_str = args[1].clone();
 
-//    let tokens = tokenizer::tokenize( &args[1]);
 
-    let mut tokenizer = tokenizer::Tokenizer::new();
+    let mut tokenizer = tokenizer::Tokenizer::new("stdin");
     tokenizer.tokenize(&input_str);
 
     let mut file = File::create(path)?;
@@ -32,8 +31,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     while !tokenizer.at_eof() {
         let token = tokenizer.get();
-        match token {
-            tokenizer::Token::Operator(s) => {
+        match token.ttype {
+            tokenizer::TType::Operator(s) => {
                 match s.as_str() {
                     "+" => writeln!(file, "  add rax, {}", tokenizer.expected_number()?)?,
                     "-" => writeln!(file, "  sub rax, {}", tokenizer.expected_number()?)?,
@@ -45,29 +44,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
 
-    //
-    // for ( token, i) in tokens[1..].iter().zip(range.into_iter()) {
-    //     match (token, i) {
-    //         (tokenizer::Token::Operator(s), i) => match s.as_str() {
-    //             "+" => {
-    //                 let val = match tokens[i+1] {
-    //                     tokenizer::Token::Integer(n) => n,
-    //                     _ => return Err(tokenizer::TokenError{ err: format!("unexpected token {:?}", tokens[i+1])})?
-    //                 };
-    //                 writeln!(file, "  add rax, {}", val)?
-    //             } ,
-    //             "-" => {
-    //                 let val = match tokens[i+1] {
-    //                     tokenizer::Token::Integer(n) => n,
-    //                     _ => return Err(tokenizer::TokenError{ err: format!("unexpected token {:?}", tokens[i+1])})?
-    //                 };
-    //                 writeln!(file, "  sub rax, {}", val)?
-    //             } ,
-    //             _ => return Err(tokenizer::TokenError{ err: format!("Unknown Operator {}", s) })?
-    //         }
-    //         (_, _) => return Err(tokenizer::TokenError{ err: format!("Unexpected token {:?}", token)})?
-    //     }
-    // }
     writeln!(file, "  ret")?;
 
     Ok(())
