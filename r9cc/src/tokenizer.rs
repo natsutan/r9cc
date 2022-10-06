@@ -99,8 +99,13 @@ impl Tokenizer {
             Token::new(TType::EOF(), self.src_line_num, 0)
         } else {
             let t = self.tokens[self.token_pos].clone();
-            self.token_pos += 1;
             t
+        }
+    }
+
+    pub fn consume(&mut self) -> () {
+        if self.token_pos != self.tokens.len() {
+            self.token_pos += 1;
         }
     }
 
@@ -111,6 +116,7 @@ impl Tokenizer {
             _ => Err(TokenError{ err: format!("{:?} is not number.", token)}),
         }
     }
+
 
     pub fn at_eof(&self) -> bool {
         self.tokens[self.token_pos].ttype == TType::EOF()

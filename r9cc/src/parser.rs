@@ -1,8 +1,10 @@
 use crate::tokenizer::*;
 use crate::ast::*;
-
+use std::mem;
 use std::error::Error;
 use std::fmt;
+use crate::ast;
+use crate::ast::AstKind::BinOp;
 
 
 #[derive(Debug)]
@@ -22,18 +24,59 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn parse (self,  tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-        self.primary(tokenizer)
+    pub fn parse(self, tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
+        expr(tokenizer)
     }
+}
 
-    fn primary(self, tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
+fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
+    let token = tokenizer.get();
+    tokenizer.consume();
+    match token.ttype {
+        TType::Integer(n) => node_number(n, &token),
+        _ => Err(ParseError{err: format!("token {:?} must be number", token)}),
+    }
+}
+
+fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
+    let node = primary(tokenizer);
+
+    loop {
         let token = tokenizer.get();
         match token.ttype {
-            TType::Integer(n) => node_number(n, &token),
-            _ => Err(ParseError{err: format!("token {:?} must be number", token)}),
+            _ => return node
+        }
+    }
+}
+
+fn expr(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
+    let mut node = mul(tokenizer)?;
+
+    loop {
+        let next_token = tokenizer.get();
+        match next_token.ttype {
+            TType::Operator(s) => {
+                if s == "+" {
+                    tokenizer.consume();
+                    let node_r = mul(tokenizer)?;
+                    node = new_node(BinOpKind::Add, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                }
+            }
+            _ => {
+                return Ok(node);
+            }
         }
     }
 
+}
+
+
+fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, loc:Loc) -> Ast {
+
+    let binop  = ast::BinOp{ value:op, loc: loc.clone()};
+    let astkind = ast::AstKind::BinOp{op: binop, l: Box::new(l), r: Box::new(r)};
+    let ast: Ast = Ast{value: astkind, loc};
+    ast
 }
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {

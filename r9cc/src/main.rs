@@ -1,3 +1,4 @@
+extern crate core;
 
 mod tokenizer;
 mod parser;
@@ -27,6 +28,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     tokenizer.tokenize(&input_str);
     let mut parser = parser::Parser{};
     let ast = parser.parse(&mut tokenizer)?;
+
+    ast::write_dot(&ast, Path::new("tmp.dot"))?;
+
     let generator = generator::Generator{};
 
     let mut file = File::create(path)?;
