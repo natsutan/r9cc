@@ -59,7 +59,7 @@ pub fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io:
             let right_cnt = write_node(&r, file, left_cnt + 1)?;
             let op_str = match op.value {
                 BinOpKind::Add => "\"+\"",
-                _ => "Unkown",
+                _ => "write node Unknown OP",
             };
 
             let left_node_name = node_name(cnt+1);

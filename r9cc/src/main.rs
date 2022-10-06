@@ -31,15 +31,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     ast::write_dot(&ast, Path::new("tmp.dot"))?;
 
-    let generator = generator::Generator{};
-
     let mut file = File::create(path)?;
     writeln!(file, ".intel_syntax noprefix")?;
     writeln!(file, ".globl main")?;
     writeln!(file, "main:")?;
 
 
-    generator.gen(ast, &mut file)?;
+    generator::gen(&ast, &mut file)?;
 
     writeln!(file, "  pop rax")?;
     writeln!(file, "  ret")?;
