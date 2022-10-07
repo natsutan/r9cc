@@ -23,6 +23,12 @@ pub fn gen(ast :&Ast, output : &mut File) -> Result<(), std::io::Error> {
 
             match op.value {
                 BinOpKind::Add => writeln!(output, "  add rax, rdi")?,
+                BinOpKind::Sub => writeln!(output, "  sub rax, rdi")?,
+                BinOpKind::Mult => writeln!(output, "  imul rax, rdi")?,
+                BinOpKind::Div => {
+                    writeln!(output, "  cqo")?;
+                    writeln!(output, "  idiv rdi")?;
+                },
                 _ => eprintln!("not implemented Binop {:?}", op.value),
             }
 

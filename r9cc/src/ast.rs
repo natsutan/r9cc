@@ -59,6 +59,9 @@ pub fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io:
             let right_cnt = write_node(&r, file, left_cnt + 1)?;
             let op_str = match op.value {
                 BinOpKind::Add => "\"+\"",
+                BinOpKind::Sub => "\"-\"",
+                BinOpKind::Mult => "\"*\"",
+                BinOpKind::Div => "\"/\"",
                 _ => "write node Unknown OP",
             };
 

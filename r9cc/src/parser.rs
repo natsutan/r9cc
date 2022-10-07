@@ -39,12 +39,29 @@ fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
 }
 
 fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let node = primary(tokenizer);
+    let mut node = primary(tokenizer)?;
 
     loop {
-        let token = tokenizer.get();
-        match token.ttype {
-            _ => return node
+        let next_token = tokenizer.get();
+        match next_token.ttype {
+            TType::Operator(s) => {
+                match &*s {
+                    "*" => {
+                        tokenizer.consume();
+                        let node_r = primary(tokenizer)?;
+                        node = new_node(BinOpKind::Mult, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                    }
+                    "/" => {
+                        tokenizer.consume();
+                        let node_r = primary(tokenizer)?;
+                        node = new_node(BinOpKind::Div, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                    }
+                    _ => return Ok(node),
+                }
+            }
+            _ => {
+                return Ok(node);
+            }
         }
     }
 }
@@ -56,10 +73,18 @@ fn expr(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
         let next_token = tokenizer.get();
         match next_token.ttype {
             TType::Operator(s) => {
-                if s == "+" {
-                    tokenizer.consume();
-                    let node_r = mul(tokenizer)?;
-                    node = new_node(BinOpKind::Add, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                match &*s {
+                    "+" => {
+                        tokenizer.consume();
+                        let node_r = mul(tokenizer)?;
+                        node = new_node(BinOpKind::Add, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                    }
+                    "-" => {
+                        tokenizer.consume();
+                        let node_r = mul(tokenizer)?;
+                        node = new_node(BinOpKind::Sub, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                    }
+                    _ => return Ok(node),
                 }
             }
             _ => {
