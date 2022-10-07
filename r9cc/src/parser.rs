@@ -34,6 +34,15 @@ fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
     tokenizer.consume();
     match token.ttype {
         TType::Integer(n) => node_number(n, &token),
+        TType::LParen => {
+            let node = expr(tokenizer)?;
+            let next_token = tokenizer.get();
+            if next_token.ttype == TType::RParen {
+                tokenizer.consume();
+                return Ok(node);
+            }
+            Err(ParseError{err: format!("token {:?} must be )", token)})
+        }
         _ => Err(ParseError{err: format!("token {:?} must be number", token)}),
     }
 }
