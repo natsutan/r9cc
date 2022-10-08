@@ -19,7 +19,6 @@ pub enum BinOpKind {
     Mult,
     Div,
 }
-
 pub type BinOp = Annot<BinOpKind>;
 
 

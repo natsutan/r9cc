@@ -48,7 +48,7 @@ fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
 }
 
 fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let mut node = primary(tokenizer)?;
+    let mut node = unarry(tokenizer)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -57,12 +57,12 @@ fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
                 match &*s {
                     "*" => {
                         tokenizer.consume();
-                        let node_r = primary(tokenizer)?;
+                        let node_r = unarry(tokenizer)?;
                         node = new_node(BinOpKind::Mult, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                     }
                     "/" => {
                         tokenizer.consume();
-                        let node_r = primary(tokenizer)?;
+                        let node_r = unarry(tokenizer)?;
                         node = new_node(BinOpKind::Div, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                     }
                     _ => return Ok(node),
@@ -104,6 +104,31 @@ fn expr(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
 
 }
 
+fn unarry(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
+    let next_token = tokenizer.get();
+    match next_token.ttype {
+        TType::Operator(s) => {
+            match &*s {
+                "+" => {
+                    tokenizer.consume();
+                    return primary(tokenizer);
+                },
+                "-" => {
+                    let dummy_token = tokenizer.get();
+                    tokenizer.consume();
+                    let node_0 = node_number(0, &dummy_token)?;
+                    let node_r = primary(tokenizer)?;
+                    let node = new_node(BinOpKind::Sub, node_0, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                    return Ok(node);
+                },
+                _ => return primary(tokenizer),
+            }
+        }
+        _ => {
+            return primary(tokenizer);
+        }
+    }
+}
 
 fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, loc:Loc) -> Ast {
 
@@ -118,3 +143,4 @@ fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {
     let astkind = AstKind::Num(n);
     Ok(Ast{ value: astkind  , loc: loc})
 }
+
