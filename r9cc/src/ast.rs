@@ -18,6 +18,10 @@ pub enum BinOpKind {
     Sub,
     Mult,
     Div,
+    Eq,  // ==
+    Ne,  // !=
+    Lt,  // <
+    Le,  // >
 }
 pub type BinOp = Annot<BinOpKind>;
 
@@ -57,10 +61,14 @@ pub fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io:
             let left_cnt = write_node(&l, file, cnt + 1)?;
             let right_cnt = write_node(&r, file, left_cnt + 1)?;
             let op_str = match op.value {
-                BinOpKind::Add => "\"+\"",
-                BinOpKind::Sub => "\"-\"",
+                BinOpKind::Add  => "\"+\"",
+                BinOpKind::Sub  => "\"-\"",
                 BinOpKind::Mult => "\"*\"",
-                BinOpKind::Div => "\"/\"",
+                BinOpKind::Div  => "\"/\"",
+                BinOpKind::Eq   => "\"==\"",
+                BinOpKind::Ne   => "\"!=\"",
+                BinOpKind::Lt   => "\"<\"",
+                BinOpKind::Le   => "\">\"",
                 _ => "write node Unknown OP",
             };
 

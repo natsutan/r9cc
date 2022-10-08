@@ -63,6 +63,7 @@ impl Tokenizer {
         let last_index = input_str.len();
 
         self.src_code.push(input_str.to_string());
+        let mut skip = false;
 
         for idx in 0..input_str.len() {
             let c = input_vec[idx];
@@ -71,6 +72,11 @@ impl Tokenizer {
             } else {
                 input_vec[idx+1]
             };
+
+            if skip {
+                skip = false;
+                continue;
+            }
 
             match c {
                 ' ' => (),
@@ -93,6 +99,40 @@ impl Tokenizer {
                         }
                     }
                 },
+                '=' => {
+                    if next_c == '=' {
+                        self.tokens.push(Token::new(TType::Operator("==".to_string()), self.src_line_num, idx));
+                        skip = true;
+                    } else {
+                        println!("Tokenize error next to = {}", next_c);
+                    }
+                }
+                '!' => {
+                    if next_c == '=' {
+                        self.tokens.push(Token::new(TType::Operator("!=".to_string()), self.src_line_num, idx));
+                        skip = true;
+                    } else {
+                        println!("Tokenize error next to = {}", next_c);
+                    }
+                }
+                '>' => {
+                    if next_c == '=' {
+                        self.tokens.push(Token::new(TType::Operator(">=".to_string()), self.src_line_num, idx));
+                        skip = true;
+                    } else {
+                        self.tokens.push(Token::new(TType::Operator(">".to_string()), self.src_line_num, idx));
+                    }
+                }
+                '<' => {
+                    if next_c == '=' {
+                        self.tokens.push(Token::new(TType::Operator("<=".to_string()), self.src_line_num, idx));
+                        skip = true;
+                    } else {
+                        self.tokens.push(Token::new(TType::Operator("<".to_string()), self.src_line_num, idx));
+                    }
+                }
+
+
                 _ => println!("Tokenize error {}", c),
             }
         }
