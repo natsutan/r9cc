@@ -68,7 +68,7 @@ pub fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io:
                 BinOpKind::Eq   => "\"==\"",
                 BinOpKind::Ne   => "\"!=\"",
                 BinOpKind::Lt   => "\"<\"",
-                BinOpKind::Le   => "\">\"",
+                BinOpKind::Le   => "\"<=\"",
                 _ => "write node Unknown OP",
             };
 

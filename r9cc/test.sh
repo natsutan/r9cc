@@ -28,8 +28,8 @@ assert 15 '5*(9-6)'
 assert 4 '(3+5)/2'
 assert 8 '5+-1*(-6+3)'
 
-assert 0 '0==1'
 assert 1 '42==42'
+assert 0 '0==1'
 assert 1 '0!=1'
 assert 0 '42!=42'
 

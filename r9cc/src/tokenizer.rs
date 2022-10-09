@@ -155,15 +155,6 @@ impl Tokenizer {
         }
     }
 
-    pub fn expected_number(&mut self) -> Result<i64, TokenError> {
-        let token = self.get();
-        match token.ttype {
-            TType::Integer(n) => Ok(n),
-            _ => Err(TokenError{ err: format!("{:?} is not number.", token)}),
-        }
-    }
-
-
     pub fn at_eof(&self) -> bool {
         self.tokens[self.token_pos].ttype == TType::EOF()
     }

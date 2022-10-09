@@ -2,9 +2,6 @@ use crate::ast::*;
 use std::fs::File;
 use std::io::prelude::*;
 
-pub struct Generator {
-}
-
 pub fn gen(ast :&Ast, output : &mut File) -> Result<(), std::io::Error> {
 
 
@@ -29,6 +26,27 @@ pub fn gen(ast :&Ast, output : &mut File) -> Result<(), std::io::Error> {
                     writeln!(output, "  cqo")?;
                     writeln!(output, "  idiv rdi")?;
                 },
+                BinOpKind::Eq => {
+                    writeln!(output, "  cmp rax, rdi\n")?;
+                    writeln!(output, "  sete al\n")?;
+                    writeln!(output, "  movzb rax, al\n")?;
+                }
+                BinOpKind::Ne => {
+                    writeln!(output, "  cmp rax, rdi\n")?;
+                    writeln!(output, "  setne al\n")?;
+                    writeln!(output, "  movzb rax, al\n")?;
+                }
+                BinOpKind::Lt => {
+                    writeln!(output, "  cmp rax, rdi\n")?;
+                    writeln!(output, "  setl al\n")?;
+                    writeln!(output, "  movzb rax, al\n")?;
+                }
+                BinOpKind::Le => {
+                    writeln!(output, "  cmp rax, rdi\n")?;
+                    writeln!(output, "  setle al\n")?;
+                    writeln!(output, "  movzb rax, al\n")?;
+                }
+
                 _ => eprintln!("not implemented Binop {:?}", op.value),
             }
 
