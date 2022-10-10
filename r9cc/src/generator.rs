@@ -132,22 +132,22 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut depth_cnt) -> Result<(), Bo
                 BinOpKind::Eq => {
                     writeln!(output, "  cmp %rdi, %rax")?;
                     writeln!(output, "  sete %al")?;
-                    writeln!(output, "  movzb %rax, %al")?;
+                    writeln!(output, "  movzb %al, %rax")?;
                 }
                 BinOpKind::Ne => {
                     writeln!(output, "  cmp %rdi, %rax")?;
                     writeln!(output, "  setne %al")?;
-                    writeln!(output, "  movzb %rax, %al")?;
+                    writeln!(output, "  movzb %al, %rax")?;
                 }
                 BinOpKind::Lt => {
                     writeln!(output, "  cmp %rdi, %rax")?;
                     writeln!(output, "  setl %al")?;
-                    writeln!(output, "  movzb %rax, %al")?;
+                    writeln!(output, "  movzb %al, %rax")?;
                 }
                 BinOpKind::Le => {
                     writeln!(output, "  cmp %rdi, %rax")?;
                     writeln!(output, "  setle %al")?;
-                    writeln!(output, "  movzb %rax, %al")?;
+                    writeln!(output, "  movzb %al, %rax")?;
                 }
                 _ => return Err(Box::new(CodeGenError { err: format!("GEN: Invalid Binop {:?}.", op) }))
             }
