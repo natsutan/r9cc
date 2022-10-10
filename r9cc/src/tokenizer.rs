@@ -105,7 +105,7 @@ impl Tokenizer {
                         self.tokens.push(Token::new(TType::Operator("==".to_string()), self.src_line_num, idx));
                         skip = true;
                     } else {
-                        println!("Tokenize error next to = {}", next_c);
+                        self.tokens.push(Token::new(TType::Operator("=".to_string()), self.src_line_num, idx));
                     }
                 }
                 '!' => {

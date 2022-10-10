@@ -86,6 +86,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
                 BinOpKind::Ne   => "\"!=\"",
                 BinOpKind::Lt   => "\"<\"",
                 BinOpKind::Le   => "\"<=\"",
+                BinOpKind::Assign => "\"=\"",
                 _ => "write node Unknown OP",
             };
 
@@ -99,12 +100,12 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             return Ok(right_cnt)
         },
         AstKind::LocalVar{name, offset} => {
-            writeln!(file, "{}", format!("{}[label={} {}]", self_node_name, name, offset))?;
+            writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, name, offset))?;
             return Ok(cnt)
         }
         AstKind::UniOp {op, l} => {
             let left_cnt = write_node(&l, file, cnt + 1)?;
-            let left_node_name = node_name(left_cnt);
+            let left_node_name = node_name(cnt + 1);
             let op_str = match op.value {
                 UniOpKind::ND_EXPR_STMT => "\"EXPR_STMT\"",
                 _ => "write node Unknown UniOP",

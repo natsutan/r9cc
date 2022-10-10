@@ -72,8 +72,8 @@ fn gen_addr(node: &Ast, output : &mut File) -> Result<(), Box<dyn Error>> {
     match &node.value {
         AstKind::LocalVar { name: s, offset: _ } => {
             let c = s.clone().chars().nth(0).unwrap();
-            let offset = (c as u8 - 'a' as u8 + 1) * 8;
-            writeln!(output, "  lea ${}(%rbp), %rax", offset)?;
+            let offset = (c as u8 - 'a' as u8 + 1) as i64 * 8;
+            writeln!(output, "  lea {}(%rbp), %rax", -offset)?;
             Ok(())
         }
         _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
@@ -109,7 +109,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut depth_cnt) -> Result<(), Bo
         }
         AstKind::BinOp { op, l, r } => {
             if op.value == BinOpKind::Assign {
-                gen_addr(node, output)?;
+                gen_addr(&l, output)?;
                 push(output, dc)?;
                 gen_expr(&r, output, dc)?;
                 pop(&"%rdi".to_string(), output, dc)?;
