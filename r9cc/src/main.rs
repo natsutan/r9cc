@@ -21,26 +21,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         process::exit(1);
     }
 
-    let path = Path::new("tmp.s");
+    let asm_path = Path::new("tmp.s");
     let input_str = args[1].clone();
 
     let mut tokenizer = tokenizer::Tokenizer::new("stdin");
     tokenizer.tokenize(&input_str);
-    let mut parser = parser::Parser{};
-    let ast = parser.parse(&mut tokenizer)?;
+    let mut parser = parser::Parser::new();
+    parser.parse(&mut tokenizer)?;
 
-    ast::write_dot(&ast, Path::new("tmp.dot"))?;
+    ast::write_dot(&parser.nodes, Path::new("tmp.dot"))?;
 
-    let mut file = File::create(path)?;
-    writeln!(file, ".intel_syntax noprefix")?;
-    writeln!(file, ".globl main")?;
-    writeln!(file, "main:")?;
+    let mut asm_file = File::create(asm_path)?;
+    generator::codegen(&parser.nodes, &mut asm_file)?;
 
-
-    generator::gen(&ast, &mut file)?;
-
-    writeln!(file, "  pop rax")?;
-    writeln!(file, "  ret")?;
 
     Ok(())
 }

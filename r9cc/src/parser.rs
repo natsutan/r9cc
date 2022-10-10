@@ -18,12 +18,46 @@ impl fmt::Display for ParseError {
 }
 
 pub struct Parser {
-
+    pub nodes: Vec<Ast>,
 }
 
 impl Parser {
-    pub fn parse(self, tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
-        expr(tokenizer)
+    pub fn new() -> Parser {
+        Parser {
+            nodes: vec![],
+        }
+    }
+
+    pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), ParseError> {
+        while !tokenizer.at_eof() {
+            let node = stmt(tokenizer)?;
+            self.nodes.push(node);
+        }
+        Ok(())
+    }
+}
+
+// stmt = expr-stmt
+fn stmt(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
+    expr_stmt(tokenizer)
+}
+
+// expr-stmt = expr ";"
+fn expr_stmt(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
+    let node = expr(tokenizer)?;
+    let token = tokenizer.get();
+    match token.ttype {
+        TType::Identifier(s) => {
+            if s == ";" {
+                tokenizer.consume();
+                let node = new_unary(UniOpKind::ND_EXPR_STMT, node, Loc { 0: token.line_num, 1: token.pos });
+                return Ok(node);
+            }
+            return Err(ParseError{err: format!("token {:?} must be ;)", s)})
+        }
+        _ => {
+            return Err(ParseError{err: format!("token {:?} must be ;)", token)})
+        }
     }
 }
 
@@ -32,6 +66,11 @@ fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
     tokenizer.consume();
     match token.ttype {
         TType::Integer(n) => node_number(n, &token),
+        TType::Identifier(s) => {
+            let tk = tokenizer.get();
+            let name = s.clone();
+            node_variable(name, &tk)
+        },
         TType::LParen => {
             let node = expr(tokenizer)?;
             let next_token = tokenizer.get();
@@ -74,10 +113,29 @@ fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
 }
 
 fn expr(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    return equality(tokenizer);
+    return assign(tokenizer);
 }
 
+fn assign (tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
+    let mut node = equality(tokenizer)?;
+    let token = tokenizer.get();
 
+    match token.ttype {
+        TType::Operator(s) => {
+            match &*s {
+                "=" => {
+                    tokenizer.consume();
+                    let node_r = assign(tokenizer)?;
+                    node = new_node(BinOpKind::Assign, node, node_r, Loc { 0: token.line_num, 1: token.pos });
+                    return Ok(node);
+                },
+                _ => return  Ok(node),
+            }
+        },
+        _ => return  Ok(node),
+    }
+
+}
 
 
 fn add(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
@@ -222,9 +280,24 @@ fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, loc:Loc) -> Ast {
     ast
 }
 
+fn new_unary(op :ast::UniOpKind, l: Ast, loc:Loc) -> Ast {
+
+    let uniop  = ast::UniOp{ value:op, loc: loc.clone()};
+    let astkind = ast::AstKind::UniOp{op: uniop, l: Box::new(l)};
+    let ast: Ast = Ast{value: astkind, loc};
+    ast
+}
+
+
 fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let astkind = AstKind::Num(n);
-    Ok(Ast{ value: astkind  , loc: loc})
+    Ok(Ast{ value: astkind, loc})
 }
 
+fn node_variable(name: String, token: &Token) ->  Result<Ast, ParseError> {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    let offset = 0;
+    let astkind = AstKind::LocalVar{name, offset};
+    Ok(Ast{ value: astkind, loc})
+}

@@ -3,6 +3,7 @@ use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Loc(pub usize, pub usize);
 
@@ -22,24 +23,40 @@ pub enum BinOpKind {
     Ne,  // !=
     Lt,  // <
     Le,  // >
+    Assign,
 }
 pub type BinOp = Annot<BinOpKind>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum UniOpKind {
+    ND_EXPR_STMT,
+}
+pub type UniOp = Annot<UniOpKind>;
+
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstKind {
     Num(i64),
+    LocalVar{name: String, offset: i64 },
     BinOp { op: BinOp, l: Box<Ast>, r: Box<Ast> },
+    UniOp { op: UniOp, l: Box<Ast>},
 }
 
 pub type Ast = Annot<AstKind>;
+pub type Program = Vec<Ast>;
 
-pub fn write_dot(ast: &Ast, path :&Path) -> Result<(),  std::io::Error> {
+pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> {
     let mut file = File::create(path)?;
 
     writeln!(file, "digraph G {{")?;
 
-    write_node(ast, &mut file, 0)?;
+    let mut cnt = 0;
+    for node in program.iter() {
+        cnt = write_node(&node, &mut file, cnt)?;
+        cnt += 1;
+    }
+
 
     writeln!(file, "}}")?;
     Ok(())
@@ -49,7 +66,7 @@ pub fn node_name(cnt :u64) -> String {
     format!("node{}", cnt)
 }
 
-pub fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
+fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
     let self_node_name = node_name(cnt);
 
     match &node.value {
@@ -81,5 +98,21 @@ pub fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io:
 
             return Ok(right_cnt)
         },
+        AstKind::LocalVar{name, offset} => {
+            writeln!(file, "{}", format!("{}[label={} {}]", self_node_name, name, offset))?;
+            return Ok(cnt)
+        }
+        AstKind::UniOp {op, l} => {
+            let left_cnt = write_node(&l, file, cnt + 1)?;
+            let left_node_name = node_name(left_cnt);
+            let op_str = match op.value {
+                UniOpKind::ND_EXPR_STMT => "\"EXPR_STMT\"",
+                _ => "write node Unknown UniOP",
+            };
+
+            writeln!(file, "{}", format!("{}[label={}]", self_node_name, op_str))?;
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, left_node_name))?;
+            return Ok(left_cnt)
+        }
     }
 }

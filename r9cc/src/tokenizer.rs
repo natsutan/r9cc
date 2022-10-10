@@ -8,6 +8,7 @@ pub enum TType {
     Operator(String),
     LParen,
     RParen,
+    Identifier(String),
     EOF(),
 }
 
@@ -131,7 +132,10 @@ impl Tokenizer {
                         self.tokens.push(Token::new(TType::Operator("<".to_string()), self.src_line_num, idx));
                     }
                 }
-
+                ';' => self.tokens.push(Token::new(TType::Identifier(";".to_string()), self.src_line_num, idx)),
+                'a'..='z' => {
+                    self.tokens.push(Token::new(TType::Identifier(c.to_string()), self.src_line_num, idx));
+                }
 
                 _ => println!("Tokenize error {}", c),
             }
