@@ -116,9 +116,9 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut depth_cnt) -> Result<(), Bo
                 writeln!(output, "  mov %rax, (%rdi)")?;
                 return Ok(())
             }
-            gen_expr(&l, output, dc)?;
-            push(output, dc)?;
             gen_expr(&r, output, dc)?;
+            push(output, dc)?;
+            gen_expr(&l, output, dc)?;
             pop(&"%rdi".to_string(), output, dc)?;
 
             match op.value {
