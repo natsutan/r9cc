@@ -47,14 +47,11 @@ fn expr_stmt(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
     let node = expr(tokenizer)?;
     let token = tokenizer.get();
     match token.ttype {
-        TType::Identifier(s) => {
-            if s == ";" {
-                tokenizer.consume();
-                let node = new_unary(UniOpKind::ND_EXPR_STMT, node, Loc { 0: token.line_num, 1: token.pos });
-                return Ok(node);
-            }
-            return Err(ParseError{err: format!("token {:?} must be ;)", s)})
-        }
+        TType::Comma => {
+            tokenizer.consume();
+            let node = new_unary(UniOpKind::ND_EXPR_STMT, node, Loc { 0: token.line_num, 1: token.pos });
+            return Ok(node);
+       }
         _ => {
             return Err(ParseError{err: format!("token {:?} must be ;)", token)})
         }

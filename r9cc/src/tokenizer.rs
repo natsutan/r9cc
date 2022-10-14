@@ -9,6 +9,7 @@ pub enum TType {
     LParen,
     RParen,
     Identifier(String),
+    Comma,
     EOF(),
 }
 
@@ -87,6 +88,7 @@ impl Tokenizer {
                 '/' => self.tokens.push(Token::new(TType::Operator("/".to_string()), self.src_line_num, idx)),
                 '(' => self.tokens.push(Token::new(TType::LParen, self.src_line_num, idx)),
                 ')' => self.tokens.push(Token::new(TType::RParen, self.src_line_num, idx)),
+                ';' => self.tokens.push(Token::new(TType::Comma, self.src_line_num, idx)),
                 '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
                     if is_digit(&next_c) {
                         s.push(c);
@@ -132,7 +134,6 @@ impl Tokenizer {
                         self.tokens.push(Token::new(TType::Operator("<".to_string()), self.src_line_num, idx));
                     }
                 }
-                ';' => self.tokens.push(Token::new(TType::Identifier(";".to_string()), self.src_line_num, idx)),
                 'a'..='z' => {
                     self.tokens.push(Token::new(TType::Identifier(c.to_string()), self.src_line_num, idx));
                 }
