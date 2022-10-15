@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     ast::write_dot(&parser.nodes, Path::new("tmp.dot"))?;
 
     let mut asm_file = File::create(asm_path)?;
-    generator::codegen(&parser.nodes, &mut asm_file)?;
+    generator::codegen(&parser.nodes, &parser.frame, &mut asm_file)?;
 
 
     Ok(())

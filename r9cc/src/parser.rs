@@ -42,14 +42,14 @@ impl Parser {
 
 }
 
-// fn find_lvar(name: &String) -> Result<(&LocalVariable, usize), ()> {
-//     for (lv, i) in lvar.iter().zip() {
-//         if name == lv.name {
-//             Ok((lv, i))
-//         }
-//     }
-//     Err(())
-// }
+fn find_lvar(name: &String, frame: &Frame) -> Result<LocalVariable, ()> {
+    for lv in frame.iter() {
+        if *name == lv.name {
+            return Ok(lv.clone())
+        }
+    }
+    Err(())
+}
 
 
 // stmt = expr-stmt
@@ -82,7 +82,20 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseErr
             let tk = tokenizer.get();
             let name = s.clone();
 
-            node_variable(name, &tk)
+            let search_result = find_lvar(&name, frame);
+
+            match search_result {
+                Ok(lv) => {
+                    node_variable(name, lv.offset, &tk)
+                }
+                Err(()) => {
+                    // new node
+                    let offset = (frame.len() as i64 +  1) * 8;
+                    let new_lv = LocalVariable{name: name.clone(), offset};
+                    frame.push(new_lv);
+                    node_variable(name, offset, &tk)
+                }
+            }
         },
         TType::LParen => {
             let node = expr(tokenizer, frame)?;
@@ -308,9 +321,8 @@ fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {
     Ok(Ast{ value: astkind, loc})
 }
 
-fn node_variable(name: String, token: &Token) ->  Result<Ast, ParseError> {
+fn node_variable(name: String, offset :i64, token: &Token) ->  Result<Ast, ParseError> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let offset = 0;
     let astkind = AstKind::LocalVar{name, offset};
     Ok(Ast{ value: astkind, loc})
 }

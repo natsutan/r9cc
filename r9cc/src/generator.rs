@@ -43,8 +43,9 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut DepthCnt) -> Result<(), Box<
 }
 
 
-pub fn codegen(program :&Program, output :&mut File) -> Result<(),  Box<dyn Error>> {
+pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
     let mut dc = DepthCnt {depth:0};
+    let stack_size = frame.len() * 8;
 
     //writeln!(output, ".intel_syntax noprefix")?;
     writeln!(output, ".globl main")?;
@@ -53,7 +54,7 @@ pub fn codegen(program :&Program, output :&mut File) -> Result<(),  Box<dyn Erro
     // Prologue
     writeln!(output, "  push %rbp")?;       //ベースポインタを保存
     writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
-    writeln!(output, "  sub $208, %rsp")?;  //変数の領域確保　26文字×8byte = 208byte
+    writeln!(output, "  sub ${}, %rsp", stack_size)?;  //変数の領域確保　26文字×8byte = 208byte
     writeln!(output, "")?;
 
     for node in program.iter() {
@@ -70,9 +71,7 @@ pub fn codegen(program :&Program, output :&mut File) -> Result<(),  Box<dyn Erro
 
 fn gen_addr(node: &Ast, output : &mut File) -> Result<(), Box<dyn Error>> {
     match &node.value {
-        AstKind::LocalVar { name: s, offset: _ } => {
-            let c = s.clone().chars().nth(0).unwrap();
-            let offset = (c as u8 - 'a' as u8 + 1) as i64 * 8;
+        AstKind::LocalVar { name: _, offset } => {
             writeln!(output, "  lea {}(%rbp), %rax", -offset)?;
             Ok(())
         }
