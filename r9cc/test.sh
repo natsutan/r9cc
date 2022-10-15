@@ -16,6 +16,11 @@ assert() {
   fi
 }
 
+
+assert 3 'foo=3; foo;'
+assert 8 'foo123=3; bar=5; foo123+bar;'
+assert 3 'foo=3; faa=5; faa-foo;'
+
 assert 100 '100;'
 assert 3 '1; 2; 3;'
 

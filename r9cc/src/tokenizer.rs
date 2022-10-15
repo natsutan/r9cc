@@ -89,19 +89,6 @@ impl Tokenizer {
                 '(' => self.tokens.push(Token::new(TType::LParen, self.src_line_num, idx)),
                 ')' => self.tokens.push(Token::new(TType::RParen, self.src_line_num, idx)),
                 ';' => self.tokens.push(Token::new(TType::Comma, self.src_line_num, idx)),
-                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-                    if is_digit(&next_c) {
-                        s.push(c);
-                    } else {
-                        s.push(c);
-                        if let Ok(val) = s.parse::<i64> () {
-                            self.tokens.push(Token::new(TType::Integer(val), self.src_line_num, idx));
-                            s = "".to_string();
-                        } else {
-                            println!("Tokenize error parse::<i64> {}", s);
-                        }
-                    }
-                },
                 '=' => {
                     if next_c == '=' {
                         self.tokens.push(Token::new(TType::Operator("==".to_string()), self.src_line_num, idx));
@@ -134,10 +121,20 @@ impl Tokenizer {
                         self.tokens.push(Token::new(TType::Operator("<".to_string()), self.src_line_num, idx));
                     }
                 }
-                'a'..='z' => {
-                    self.tokens.push(Token::new(TType::Identifier(c.to_string()), self.src_line_num, idx));
-                }
-
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'a'..='z' => {
+                    if is_digit(&next_c) || is_alpha(&next_c) {
+                        s.push(c);
+                    } else {
+                        s.push(c);
+                        if let Ok(val) = s.parse::<i64> () {
+                            self.tokens.push(Token::new(TType::Integer(val), self.src_line_num, idx));
+                            s = "".to_string();
+                        } else {
+                            self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx));
+                            s = "".to_string();
+                        }
+                    }
+                },
                 _ => println!("Tokenize error {}", c),
             }
         }
@@ -170,6 +167,13 @@ impl Tokenizer {
 fn is_digit(c :&char) -> bool {
     match c {
         '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => true,
+        _ => false,
+    }
+}
+
+fn is_alpha(c :&char) -> bool {
+    match c {
+        'a'..='z' => true,
         _ => false,
     }
 }

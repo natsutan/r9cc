@@ -18,11 +18,11 @@ impl fmt::Display for CodeGenError {
     }
 }
 
-struct depth_cnt {
+struct DepthCnt {
     pub depth:i64,
 }
 
-impl depth_cnt {
+impl DepthCnt {
     pub fn add(&mut self, d: u64) {
         self.depth += d as i64;
     }
@@ -33,7 +33,7 @@ impl depth_cnt {
 
 
 
-fn gen_stmt(node :&Ast, output :&mut File, dc: &mut depth_cnt) -> Result<(), Box<dyn Error>>  {
+fn gen_stmt(node :&Ast, output :&mut File, dc: &mut DepthCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
         AstKind::UniOp {op, l} => {
             gen_expr(&l, output,    dc)
@@ -44,7 +44,7 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut depth_cnt) -> Result<(), Box
 
 
 pub fn codegen(program :&Program, output :&mut File) -> Result<(),  Box<dyn Error>> {
-    let mut dc = depth_cnt{depth:0};
+    let mut dc = DepthCnt {depth:0};
 
     //writeln!(output, ".intel_syntax noprefix")?;
     writeln!(output, ".globl main")?;
@@ -81,13 +81,13 @@ fn gen_addr(node: &Ast, output : &mut File) -> Result<(), Box<dyn Error>> {
 }
 
 
-fn push(output : &mut File, dc :&mut depth_cnt ) -> Result<(), Box<dyn Error>>  {
+fn push(output : &mut File, dc :&mut DepthCnt) -> Result<(), Box<dyn Error>>  {
     writeln!(output, "  push %rax")?;
     dc.add(1);
     Ok(())
 }
 
-fn pop(s: &String, output : &mut File, dc :&mut depth_cnt) -> Result<(), Box<dyn Error>> {
+fn pop(s: &String, output : &mut File, dc :&mut DepthCnt) -> Result<(), Box<dyn Error>> {
     writeln!(output, "  pop {}", s)?;
     dc.sub(1);
     Ok(())
@@ -95,7 +95,7 @@ fn pop(s: &String, output : &mut File, dc :&mut depth_cnt) -> Result<(), Box<dyn
 
 
 
-fn gen_expr(node :&Ast, output : &mut File, dc :&mut depth_cnt) -> Result<(), Box<dyn Error>> {
+fn gen_expr(node :&Ast, output : &mut File, dc :&mut DepthCnt) -> Result<(), Box<dyn Error>> {
 
     match node.value.clone() {
         AstKind::Num(n) => {

@@ -43,8 +43,17 @@ pub enum AstKind {
     UniOp { op: UniOp, l: Box<Ast>},
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalVariable {
+    pub name: String,
+    pub offset: i64,
+}
+
+
+
 pub type Ast = Annot<AstKind>;
 pub type Program = Vec<Ast>;
+pub type Frame = Vec<LocalVariable>;
 
 pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> {
     let mut file = File::create(path)?;

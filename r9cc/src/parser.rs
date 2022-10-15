@@ -18,33 +18,48 @@ impl fmt::Display for ParseError {
 }
 
 pub struct Parser {
-    pub nodes: Vec<Ast>,
+    pub nodes: Program,
+    pub frame: Frame,
 }
+
+static mut lvar: Vec<LocalVariable> = vec![];
 
 impl Parser {
     pub fn new() -> Parser {
         Parser {
             nodes: vec![],
+            frame: vec![],
         }
     }
 
     pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), ParseError> {
         while !tokenizer.at_eof() {
-            let node = stmt(tokenizer)?;
+            let node = stmt(tokenizer, &mut self.frame)?;
             self.nodes.push(node);
         }
         Ok(())
     }
+
 }
 
+// fn find_lvar(name: &String) -> Result<(&LocalVariable, usize), ()> {
+//     for (lv, i) in lvar.iter().zip() {
+//         if name == lv.name {
+//             Ok((lv, i))
+//         }
+//     }
+//     Err(())
+// }
+
+
 // stmt = expr-stmt
-fn stmt(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
-    expr_stmt(tokenizer)
+fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    expr_stmt(tokenizer, frame)
 }
 
 // expr-stmt = expr ";"
-fn expr_stmt(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
-    let node = expr(tokenizer)?;
+fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    let node = expr(tokenizer, frame)?;
     let token = tokenizer.get();
     match token.ttype {
         TType::Comma => {
@@ -58,7 +73,7 @@ fn expr_stmt(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
     }
 }
 
-fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
+fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
     let token = tokenizer.get();
     tokenizer.consume();
     match token.ttype {
@@ -66,10 +81,11 @@ fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
         TType::Identifier(s) => {
             let tk = tokenizer.get();
             let name = s.clone();
+
             node_variable(name, &tk)
         },
         TType::LParen => {
-            let node = expr(tokenizer)?;
+            let node = expr(tokenizer, frame)?;
             let next_token = tokenizer.get();
             if next_token.ttype == TType::RParen {
                 tokenizer.consume();
@@ -81,8 +97,8 @@ fn primary(tokenizer: &mut Tokenizer) -> Result<Ast, ParseError> {
     }
 }
 
-fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let mut node = unary(tokenizer)?;
+fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    let mut node = unary(tokenizer, frame)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -91,12 +107,12 @@ fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
                 match &*s {
                     "*" => {
                         tokenizer.consume();
-                        let node_r = unary(tokenizer)?;
+                        let node_r = unary(tokenizer, frame)?;
                         node = new_node(BinOpKind::Mult, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                     }
                     "/" => {
                         tokenizer.consume();
-                        let node_r = unary(tokenizer)?;
+                        let node_r = unary(tokenizer, frame)?;
                         node = new_node(BinOpKind::Div, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                     }
                     _ => return Ok(node),
@@ -109,12 +125,12 @@ fn mul(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
     }
 }
 
-fn expr(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    return assign(tokenizer);
+fn expr(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    return assign(tokenizer, frame);
 }
 
-fn assign (tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let mut node = equality(tokenizer)?;
+fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    let mut node = equality(tokenizer, frame)?;
     let token = tokenizer.get();
 
     match token.ttype {
@@ -122,7 +138,7 @@ fn assign (tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
             match &*s {
                 "=" => {
                     tokenizer.consume();
-                    let node_r = assign(tokenizer)?;
+                    let node_r = assign(tokenizer, frame)?;
                     node = new_node(BinOpKind::Assign, node, node_r, Loc { 0: token.line_num, 1: token.pos });
                     return Ok(node);
                 },
@@ -135,8 +151,8 @@ fn assign (tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
 }
 
 
-fn add(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let mut node = mul(tokenizer)?;
+fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> {
+    let mut node = mul(tokenizer, frame)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -145,12 +161,12 @@ fn add(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
                 match &*s {
                     "+" => {
                         tokenizer.consume();
-                        let node_r = mul(tokenizer)?;
+                        let node_r = mul(tokenizer, frame)?;
                         node = new_node(BinOpKind::Add, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
                     }
                     "-" => {
                         tokenizer.consume();
-                        let node_r = mul(tokenizer)?;
+                        let node_r = mul(tokenizer, frame)?;
                         node = new_node(BinOpKind::Sub, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
                     }
                     _ => return Ok(node),
@@ -164,34 +180,34 @@ fn add(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
 
 }
 
-fn unary(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
+fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
     let next_token = tokenizer.get();
     match next_token.ttype {
         TType::Operator(s) => {
             match &*s {
                 "+" => {
                     tokenizer.consume();
-                    return unary(tokenizer);
+                    return unary(tokenizer, frame);
                 },
                 "-" => {
                     let dummy_token = tokenizer.get();
                     tokenizer.consume();
                     let node_0 = node_number(0, &dummy_token)?;
-                    let node_r = primary(tokenizer)?;
+                    let node_r = primary(tokenizer, frame)?;
                     let node = new_node(BinOpKind::Sub, node_0, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
                     return Ok(node);
                 },
-                _ => return primary(tokenizer),
+                _ => return primary(tokenizer, frame),
             }
         }
         _ => {
-            return primary(tokenizer);
+            return primary(tokenizer, frame);
         }
     }
 }
 
-fn equality(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let node = relational(tokenizer)?;
+fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    let node = relational(tokenizer, frame)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -200,13 +216,13 @@ fn equality(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
                 match &*s {
                     "==" => {
                         tokenizer.consume();
-                        let node_r = relational(tokenizer)?;
+                        let node_r = relational(tokenizer, frame)?;
                         let node = new_node(BinOpKind::Eq, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                         return Ok(node);
                     },
                     "!=" => {
                         tokenizer.consume();
-                        let node_r = relational(tokenizer)?;
+                        let node_r = relational(tokenizer, frame)?;
                         let node = new_node(BinOpKind::Ne, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                         return Ok(node);
                     },
@@ -225,8 +241,8 @@ fn equality(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
 
 
 
-fn relational(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
-    let node = add(tokenizer)?;
+fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> {
+    let node = add(tokenizer, frame)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -235,25 +251,25 @@ fn relational(tokenizer : &mut Tokenizer) -> Result<Ast, ParseError> {
                 match &*s {
                     "<" => {
                         tokenizer.consume();
-                        let node_r = add(tokenizer)?;
+                        let node_r = add(tokenizer, frame)?;
                         let node = new_node(BinOpKind::Lt, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                         return Ok(node);
                     },
                     "<=" => {
                         tokenizer.consume();
-                        let node_r = add(tokenizer)?;
+                        let node_r = add(tokenizer, frame)?;
                         let node = new_node(BinOpKind::Le, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
                         return Ok(node);
                     },
                     ">" => {
                         tokenizer.consume();
-                        let node_l = add(tokenizer)?;
+                        let node_l = add(tokenizer, frame)?;
                         let node = new_node(BinOpKind::Lt, node_l, node, Loc { 0: next_token.line_num, 1: next_token.pos });
                         return Ok(node);
                     },
                     ">=" => {
                         tokenizer.consume();
-                        let node_l = add(tokenizer)?;
+                        let node_l = add(tokenizer, frame)?;
                         let node = new_node(BinOpKind::Le, node_l, node, Loc { 0: next_token.line_num, 1: next_token.pos });
                         return Ok(node);
                     },
