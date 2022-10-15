@@ -36,7 +36,14 @@ impl DepthCnt {
 fn gen_stmt(node :&Ast, output :&mut File, dc: &mut DepthCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
         AstKind::UniOp {op, l} => {
-            gen_expr(&l, output,    dc)
+            match op.value {
+                UniOpKind::ND_RETURN => {
+                    gen_expr(l, output, dc)?;
+                    writeln!(output, "  jmp .L.return")?;
+                    Ok(())
+                },
+                UniOpKind::ND_EXPR_STMT => gen_expr(&l, output,    dc)
+            }
         }
         _ => Err(Box::new(CodeGenError{err: format!("invalid statement")}))
     }
@@ -54,7 +61,7 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
     // Prologue
     writeln!(output, "  push %rbp")?;       //ベースポインタを保存
     writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
-    writeln!(output, "  sub ${}, %rsp", stack_size)?;  //変数の領域確保　26文字×8byte = 208byte
+    writeln!(output, "  sub ${}, %rsp", stack_size)?;  //変数の領域確保
     writeln!(output, "")?;
 
     for node in program.iter() {
@@ -63,6 +70,7 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
         writeln!(output, "")?;
     }
     writeln!(output, "")?;
+    writeln!(output, ".L.return:")?;
     writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
     writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
     writeln!(output, "  ret")?;

@@ -30,6 +30,7 @@ pub type BinOp = Annot<BinOpKind>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniOpKind {
     ND_EXPR_STMT,
+    ND_RETURN,
 }
 pub type UniOp = Annot<UniOpKind>;
 
@@ -117,6 +118,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             let left_node_name = node_name(cnt + 1);
             let op_str = match op.value {
                 UniOpKind::ND_EXPR_STMT => "\"EXPR_STMT\"",
+                UniOpKind::ND_RETURN => "\"RETURN\"",
                 _ => "write node Unknown UniOP",
             };
 

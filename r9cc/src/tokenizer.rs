@@ -10,6 +10,7 @@ pub enum TType {
     RParen,
     Identifier(String),
     Comma,
+    Return,
     EOF(),
 }
 
@@ -130,8 +131,16 @@ impl Tokenizer {
                             self.tokens.push(Token::new(TType::Integer(val), self.src_line_num, idx));
                             s = "".to_string();
                         } else {
-                            self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx));
-                            s = "".to_string();
+                            match &*s {
+                                "return" => {
+                                    self.tokens.push(Token::new(TType::Return, self.src_line_num, idx));
+                                    s = "".to_string();
+                                }
+                                _ => {
+                                    self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx));
+                                    s = "".to_string();
+                                }
+                            }
                         }
                     }
                 },

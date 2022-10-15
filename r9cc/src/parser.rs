@@ -54,8 +54,26 @@ fn find_lvar(name: &String, frame: &Frame) -> Result<LocalVariable, ()> {
 
 // stmt = expr-stmt
 fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
-    expr_stmt(tokenizer, frame)
+    let token = tokenizer.get();
+    match token.ttype {
+        TType::Return => {
+            tokenizer.consume();
+            let node_l = expr(tokenizer, frame)?;
+            let token_comma = tokenizer.get();
+            if token_comma.ttype == TType::Comma {
+                tokenizer.consume();
+                let node = new_unary(UniOpKind::ND_RETURN, node_l, Loc { 0: token.line_num, 1: token.pos });
+                Ok(node)
+            } else {
+                return Err(ParseError{err: format!("token {:?} must be ;)", token_comma)})
+            }
+        }
+        _ =>  expr_stmt(tokenizer, frame)
+    }
 }
+
+
+
 
 // expr-stmt = expr ";"
 fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
