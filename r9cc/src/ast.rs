@@ -34,6 +34,12 @@ pub enum UniOpKind {
 }
 pub type UniOp = Annot<UniOpKind>;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BlockKind {
+    ND_BLOCK,
+}
+pub type Block = Annot<BlockKind>;
+
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,6 +48,7 @@ pub enum AstKind {
     LocalVar{name: String, offset: i64 },
     BinOp { op: BinOp, l: Box<Ast>, r: Box<Ast> },
     UniOp { op: UniOp, l: Box<Ast>},
+    Block { body: Vec<Box<Ast>>},
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +132,17 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             writeln!(file, "{}", format!("{}[label={}]", self_node_name, op_str))?;
             writeln!(file, "{}", format!("{} -> {}", self_node_name, left_node_name))?;
             return Ok(left_cnt)
+        }
+        AstKind::Block { body } => {
+            writeln!(file, "{}", format!("{}[label=BLOCK]", self_node_name))?;
+            let mut next_cnt = cnt;
+            for node in body.iter() {
+                let next_node_name = node_name(next_cnt+1);
+                writeln!(file, "{}", format!("{} -> {}", self_node_name, next_node_name))?;
+                next_cnt = write_node(node, file, next_cnt+1)?;
+            }
+
+            return Ok(next_cnt)
         }
     }
 }

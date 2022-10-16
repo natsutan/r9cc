@@ -45,6 +45,12 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut DepthCnt) -> Result<(), Box<
                 UniOpKind::ND_EXPR_STMT => gen_expr(&l, output,    dc)
             }
         }
+        AstKind::Block { body } => {
+            for node in body.iter() {
+                gen_stmt(node, output, dc);
+            }
+            Ok(())
+        },
         _ => Err(Box::new(CodeGenError{err: format!("invalid statement")}))
     }
 }
@@ -64,12 +70,22 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
     writeln!(output, "  sub ${}, %rsp", stack_size)?;  //変数の領域確保
     writeln!(output, "")?;
 
+    match &program[0].value {
+        AstKind::Block{body} => {
+          for node in body.iter() {
+              gen_stmt(node, output, &mut dc);
+          }
+        },
+        _ => return Err(Box::new(CodeGenError{err: format!("Program must be block")})),
+    }
+    assert_eq!(dc.depth, 0);
+
     for node in program.iter() {
         gen_stmt(&node, output, &mut dc)?;
-        assert_eq!(dc.depth, 0);
         writeln!(output, "")?;
     }
-    writeln!(output, "")?;
+
+
     writeln!(output, ".L.return:")?;
     writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
     writeln!(output, "  pop %rbp")?;        //ベースポインタの復元

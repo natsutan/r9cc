@@ -8,6 +8,8 @@ pub enum TType {
     Operator(String),
     LParen,
     RParen,
+    LBrace,
+    RBrace,
     Identifier(String),
     Comma,
     Return,
@@ -89,6 +91,8 @@ impl Tokenizer {
                 '/' => self.tokens.push(Token::new(TType::Operator("/".to_string()), self.src_line_num, idx)),
                 '(' => self.tokens.push(Token::new(TType::LParen, self.src_line_num, idx)),
                 ')' => self.tokens.push(Token::new(TType::RParen, self.src_line_num, idx)),
+                '{' => self.tokens.push(Token::new(TType::LBrace, self.src_line_num, idx)),
+                '}' => self.tokens.push(Token::new(TType::RBrace, self.src_line_num, idx)),
                 ';' => self.tokens.push(Token::new(TType::Comma, self.src_line_num, idx)),
                 '=' => {
                     if next_c == '=' {

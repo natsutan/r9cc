@@ -33,10 +33,13 @@ impl Parser {
     }
 
     pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), ParseError> {
-        while !tokenizer.at_eof() {
-            let node = stmt(tokenizer, &mut self.frame)?;
-            self.nodes.push(node);
+        let token = tokenizer.get();
+        if token.ttype != TType::LBrace {
+            return Err(ParseError{err: format!("the first {{ is not found  {:?}", token)})
         }
+        tokenizer.consume();
+        let node = compound_stmt(tokenizer, &mut self.frame)?;
+        self.nodes.push(node);
         Ok(())
     }
 
@@ -68,12 +71,32 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
                 return Err(ParseError{err: format!("token {:?} must be ;)", token_comma)})
             }
         }
+        TType::LBrace => {
+            tokenizer.consume();
+            return compound_stmt(tokenizer, frame)
+        },
+
         _ =>  expr_stmt(tokenizer, frame)
     }
 }
 
 
+// stmt = expr-stmt
+fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+    let token_head = tokenizer.get();
+    let mut body :Vec<Box<Ast>> =  vec![];
 
+    let mut token = tokenizer.get();
+    while token.ttype != TType::RBrace {
+        let st = stmt(tokenizer, frame)?;
+        body.push(Box::from(st));
+        token = tokenizer.get();
+    }
+
+    let mut node_block = new_block(body, Loc { 0: token_head.line_num, 1: token_head.pos });
+
+    Ok(node_block)
+}
 
 // expr-stmt = expr ";"
 fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
@@ -329,6 +352,11 @@ fn new_unary(op :ast::UniOpKind, l: Ast, loc:Loc) -> Ast {
     let uniop  = ast::UniOp{ value:op, loc: loc.clone()};
     let astkind = ast::AstKind::UniOp{op: uniop, l: Box::new(l)};
     let ast: Ast = Ast{value: astkind, loc};
+    ast
+}
+
+fn new_block(body :Vec<Box<Ast>>, loc:Loc) -> Ast {
+    let ast: Ast = Ast{value: AstKind::Block { body }, loc: loc.clone()};
     ast
 }
 
