@@ -92,7 +92,7 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Pa
         body.push(Box::from(st));
         token = tokenizer.get();
     }
-
+    tokenizer.consume();
     let mut node_block = new_block(body, Loc { 0: token_head.line_num, 1: token_head.pos });
 
     Ok(node_block)
