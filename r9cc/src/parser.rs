@@ -100,18 +100,24 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Pa
 
 // expr-stmt = expr ";"
 fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
-    let node = expr(tokenizer, frame)?;
+
     let token = tokenizer.get();
-    match token.ttype {
-        TType::Comma => {
-            tokenizer.consume();
-            let node = new_unary(UniOpKind::ND_EXPR_STMT, node, Loc { 0: token.line_num, 1: token.pos });
-            return Ok(node);
-       }
-        _ => {
-            return Err(ParseError{err: format!("token {:?} must be ;)", token)})
-        }
+    if token.ttype == TType::Comma {
+        tokenizer.consume();
+        let node = new_block(vec![], Loc { 0: token.line_num, 1: token.pos });
+        return Ok(node)
     }
+
+    let node_expr = expr(tokenizer, frame)?;
+    let node = new_unary(UniOpKind::ND_EXPR_STMT, node_expr, Loc { 0: token.line_num, 1: token.pos });
+
+    let token_comma = tokenizer.get();
+    if token_comma.ttype != TType::Comma {
+        return Err(ParseError{err: format!("expr_stmt must end ; {:?}) ", token_comma)})
+    }
+    tokenizer.consume();
+
+    return  Ok(node)
 }
 
 fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
