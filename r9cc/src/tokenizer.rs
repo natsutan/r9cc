@@ -11,9 +11,11 @@ pub enum TType {
     LBrace,
     RBrace,
     Identifier(String),
+    If,
+    Else,
     Comma,
     Return,
-    EOF(),
+    EOF,
 }
 
 #[derive(Debug, Clone)]
@@ -140,6 +142,14 @@ impl Tokenizer {
                                     self.tokens.push(Token::new(TType::Return, self.src_line_num, idx));
                                     s = "".to_string();
                                 }
+                                "if" => {
+                                    self.tokens.push(Token::new(TType::If, self.src_line_num, idx));
+                                    s = "".to_string();
+                                }
+                                "else" => {
+                                    self.tokens.push(Token::new(TType::Else, self.src_line_num, idx));
+                                    s = "".to_string();
+                                }
                                 _ => {
                                     self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx));
                                     s = "".to_string();
@@ -151,13 +161,13 @@ impl Tokenizer {
                 _ => println!("Tokenize error {}", c),
             }
         }
-        self.tokens.push(Token::new(TType::EOF(), self.src_line_num, last_index));
+        self.tokens.push(Token::new(TType::EOF, self.src_line_num, last_index));
 
     }
 
     pub fn get(&mut self) -> Token {
         if self.token_pos == self.tokens.len() {
-            Token::new(TType::EOF(), self.src_line_num, 0)
+            Token::new(TType::EOF, self.src_line_num, 0)
         } else {
             let t = self.tokens[self.token_pos].clone();
             t
@@ -171,7 +181,7 @@ impl Tokenizer {
     }
 
     pub fn at_eof(&self) -> bool {
-        self.tokens[self.token_pos].ttype == TType::EOF()
+        self.tokens[self.token_pos].ttype == TType::EOF
     }
 }
 
@@ -217,7 +227,7 @@ mod tests {
                 TType::Integer(5),
                 TType::Operator("+".to_string()),
                 TType::Integer(20),
-                TType::EOF()
+                TType::EOF
             ]
         );
     }
@@ -240,7 +250,7 @@ mod tests {
                 TType::Integer(20),
                 TType::Operator("-".to_string()),
                 TType::Integer(4),
-                TType::EOF()
+                TType::EOF
             ]
         );
     }
@@ -255,8 +265,8 @@ mod tests {
         let t2 = tokenizer.get();
         assert_eq!(t2.ttype, TType::Integer(20));
         let t3 = tokenizer.get();
-        assert_eq!(t3.ttype, TType::EOF());
+        assert_eq!(t3.ttype, TType::EOF);
         let t4 = tokenizer.get();
-        assert_eq!(t4.ttype, TType::EOF());
+        assert_eq!(t4.ttype, TType::EOF);
     }
 }

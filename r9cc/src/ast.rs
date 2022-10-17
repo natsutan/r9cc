@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::path::Path;
 use std::fs::File;
-use std::io::prelude::*;
+//use std::io::prelude::*;
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -29,16 +29,22 @@ pub type BinOp = Annot<BinOpKind>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniOpKind {
-    ND_EXPR_STMT,
-    ND_RETURN,
+    NdExprStmt,
+    NdReturn,
 }
 pub type UniOp = Annot<UniOpKind>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BlockKind {
-    ND_BLOCK,
+    NdBlock,
 }
 pub type Block = Annot<BlockKind>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum IfKind {
+    NdIf,
+}
+pub type If_ = Annot<IfKind>;
 
 
 
@@ -49,6 +55,7 @@ pub enum AstKind {
     BinOp { op: BinOp, l: Box<Ast>, r: Box<Ast> },
     UniOp { op: UniOp, l: Box<Ast>},
     Block { body: Vec<Box<Ast>>},
+    If_ {cond: Box<Ast>, then: Box<Ast>, els : Box<Ast>},
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +111,6 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
                 BinOpKind::Lt   => "\"<\"",
                 BinOpKind::Le   => "\"<=\"",
                 BinOpKind::Assign => "\"=\"",
-                _ => "write node Unknown OP",
             };
 
             let left_node_name = node_name(cnt+1);
@@ -124,9 +130,8 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             let left_cnt = write_node(&l, file, cnt + 1)?;
             let left_node_name = node_name(cnt + 1);
             let op_str = match op.value {
-                UniOpKind::ND_EXPR_STMT => "\"EXPR_STMT\"",
-                UniOpKind::ND_RETURN => "\"RETURN\"",
-                _ => "write node Unknown UniOP",
+                UniOpKind::NdExprStmt => "\"EXPR_STMT\"",
+                UniOpKind::NdReturn => "\"RETURN\"",
             };
 
             writeln!(file, "{}", format!("{}[label={}]", self_node_name, op_str))?;
@@ -141,6 +146,21 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
                 writeln!(file, "{}", format!("{} -> {}", self_node_name, next_node_name))?;
                 next_cnt = write_node(node, file, next_cnt+1)?;
             }
+
+            return Ok(next_cnt)
+        }
+        AstKind::If_ {cond, then, els} => {
+            writeln!(file, "{}", format!("{}[label=IF]", self_node_name))?;
+            let mut next_cnt = cnt;
+            let cond_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, cond_node_name))?;
+            next_cnt = write_node(cond, file ,next_cnt + 1)?;
+            let then_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, then_node_name))?;
+            next_cnt = write_node(then, file ,next_cnt + 1)?;
+            let else_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, else_node_name))?;
+            next_cnt = write_node(els, file ,next_cnt + 1)?;
 
             return Ok(next_cnt)
         }

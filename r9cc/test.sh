@@ -15,6 +15,16 @@ assert() {
     exit 1
   fi
 }
+
+
+assert 3 '{ if (0) return 2; return 3; }'
+assert 3 '{ if (1-1) return 2; return 3; }'
+assert 2 '{ if (1) return 2; return 3; }'
+assert 2 '{ if (2-1) return 2; return 3; }'
+assert 4 '{ if (0) { 1; 2; return 3; } else { return 4; } }'
+assert 3 '{ if (1) { 1; 2; return 3; } else { return 4; } }'
+
+
 assert 3 '{ {1;} return 3;}'
 
 assert 3 '{ {1; {2;} return 3;} }'
@@ -69,12 +79,6 @@ assert 0 '{1>=2;}'
 
 
 #
-#assert 3 '{ if (0) return 2; return 3; }'
-#assert 3 '{ if (1-1) return 2; return 3; }'
-#assert 2 '{ if (1) return 2; return 3; }'
-#assert 2 '{ if (2-1) return 2; return 3; }'
-#assert 4 '{ if (0) { 1; 2; return 3; } else { return 4; } }'
-#assert 3 '{ if (1) { 1; 2; return 3; } else { return 4; } }'
 #
 #assert 55 '{ i=0; j=0; for (i=0; i<=10; i=i+1) j=i+j; return j; }'
 #assert 3 '{ for (;;) {return 3;} return 5; }'

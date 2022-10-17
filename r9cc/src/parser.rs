@@ -65,16 +65,40 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
             let token_comma = tokenizer.get();
             if token_comma.ttype == TType::Comma {
                 tokenizer.consume();
-                let node = new_unary(UniOpKind::ND_RETURN, node_l, Loc { 0: token.line_num, 1: token.pos });
+                let node = new_unary(UniOpKind::NdReturn, node_l, Loc { 0: token.line_num, 1: token.pos });
                 Ok(node)
             } else {
-                return Err(ParseError{err: format!("token {:?} must be ;)", token_comma)})
+                return Err(ParseError{err: format!("token {:?} must be ;", token_comma)})
             }
         }
         TType::LBrace => {
             tokenizer.consume();
             return compound_stmt(tokenizer, frame)
         },
+        TType::If => {
+            tokenizer.consume();
+
+            let token_lpalen = tokenizer.get();
+            if token_lpalen.ttype != TType::LParen {
+                return Err(ParseError{err: format!("token {:?} must be ( ", token_lpalen)})
+            }
+            tokenizer.consume();
+            let cond = expr(tokenizer, frame)?;
+            let token_rpalen = tokenizer.get();
+            if token_rpalen.ttype != TType::RParen {
+                return Err(ParseError{err: format!("token {:?} must be ) ", token_rpalen)})
+            }
+            tokenizer.consume();
+            let then = stmt(tokenizer, frame)?;
+            let token_else = tokenizer.get();
+            if token_else.ttype == TType::Else {
+                tokenizer.consume();
+                let els = stmt(tokenizer, frame)?;
+                return Ok(new_if_else(cond, then, els, Loc { 0: token.line_num, 1: token.pos }));
+            } else {
+                return Ok(new_if(cond, then, Loc { 0: token.line_num, 1: token.pos }));
+            }
+        }
 
         _ =>  expr_stmt(tokenizer, frame)
     }
@@ -93,7 +117,7 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Pa
         token = tokenizer.get();
     }
     tokenizer.consume();
-    let mut node_block = new_block(body, Loc { 0: token_head.line_num, 1: token_head.pos });
+    let node_block = new_block(body, Loc { 0: token_head.line_num, 1: token_head.pos });
 
     Ok(node_block)
 }
@@ -109,7 +133,7 @@ fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseE
     }
 
     let node_expr = expr(tokenizer, frame)?;
-    let node = new_unary(UniOpKind::ND_EXPR_STMT, node_expr, Loc { 0: token.line_num, 1: token.pos });
+    let node = new_unary(UniOpKind::NdExprStmt, node_expr, Loc { 0: token.line_num, 1: token.pos });
 
     let token_comma = tokenizer.get();
     if token_comma.ttype != TType::Comma {
@@ -365,6 +389,22 @@ fn new_block(body :Vec<Box<Ast>>, loc:Loc) -> Ast {
     let ast: Ast = Ast{value: AstKind::Block { body }, loc: loc.clone()};
     ast
 }
+
+fn new_if_else(cond :Ast, then :Ast, els :Ast, loc:Loc) -> Ast {
+    let cond_box = Box::new(cond);
+    let then_box = Box::new(then);
+    let els_box = Box::new(els);
+
+    let ast: Ast = Ast{value: AstKind::If_ {cond: cond_box , then: then_box, els: els_box }, loc: loc.clone()};
+    ast
+}
+
+
+fn new_if(cond :Ast, then :Ast , loc:Loc) -> Ast {
+    let els = new_block(vec![], loc.clone());
+    new_if_else(cond, then, els, loc.clone())
+}
+
 
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {

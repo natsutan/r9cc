@@ -18,31 +18,33 @@ impl fmt::Display for CodeGenError {
     }
 }
 
-struct DepthCnt {
+struct GenCnt {
     pub depth:i64,
+    pub label:i64,
 }
 
-impl DepthCnt {
-    pub fn add(&mut self, d: u64) {
+impl GenCnt {
+    pub fn depth_add(&mut self, d: u64) {
         self.depth += d as i64;
     }
-    pub fn sub(&mut self, d: u64) {
+    pub fn depth_sub(&mut self, d: u64) {
         self.depth -= d as i64;
     }
+    pub fn label_up(&mut self) { self.label += 1 ;}
 }
 
 
 
-fn gen_stmt(node :&Ast, output :&mut File, dc: &mut DepthCnt) -> Result<(), Box<dyn Error>>  {
+fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
         AstKind::UniOp {op, l} => {
             match op.value {
-                UniOpKind::ND_RETURN => {
+                UniOpKind::NdReturn => {
                     gen_expr(l, output, dc)?;
                     writeln!(output, "  jmp .L.return")?;
                     Ok(())
-                },
-                UniOpKind::ND_EXPR_STMT => gen_expr(&l, output,    dc)
+                }
+                UniOpKind::NdExprStmt => gen_expr(&l, output, dc)
             }
         }
         AstKind::Block { body } => {
@@ -51,13 +53,27 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut DepthCnt) -> Result<(), Box<
             }
             Ok(())
         },
+        AstKind::If_{cond, then, els} => {
+            let c = dc.label;
+            dc.label_up();
+
+            gen_expr(cond, output, dc)?;
+            writeln!(output, "  cmp $0, %rax\n")?;
+            writeln!(output, "  je  .L.else.{:?}", c)?;
+            gen_stmt(then, output, dc)?;
+            writeln!(output, "  jmp .L.end.{:?}", c)?;
+            writeln!(output, ".L.else.{:?}:", c)?;
+            gen_stmt(els, output, dc)?;
+            writeln!(output, ".L.end.{:?}:", c)?;
+            Ok(())
+        },
         _ => Err(Box::new(CodeGenError{err: format!("invalid statement")}))
     }
 }
 
 
 pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
-    let mut dc = DepthCnt {depth:0};
+    let mut dc = GenCnt {depth:0, label: 1};
     let stack_size = frame.len() * 8;
 
     //writeln!(output, ".intel_syntax noprefix")?;
@@ -80,12 +96,6 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
     }
     assert_eq!(dc.depth, 0);
 
-    for node in program.iter() {
-        gen_stmt(&node, output, &mut dc)?;
-        writeln!(output, "")?;
-    }
-
-
     writeln!(output, ".L.return:")?;
     writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
     writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
@@ -104,28 +114,28 @@ fn gen_addr(node: &Ast, output : &mut File) -> Result<(), Box<dyn Error>> {
 }
 
 
-fn push(output : &mut File, dc :&mut DepthCnt) -> Result<(), Box<dyn Error>>  {
+fn push(output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>>  {
     writeln!(output, "  push %rax")?;
-    dc.add(1);
+    dc.depth_add(1);
     Ok(())
 }
 
-fn pop(s: &String, output : &mut File, dc :&mut DepthCnt) -> Result<(), Box<dyn Error>> {
+fn pop(s: &String, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     writeln!(output, "  pop {}", s)?;
-    dc.sub(1);
+    dc.depth_sub(1);
     Ok(())
 }
 
 
 
-fn gen_expr(node :&Ast, output : &mut File, dc :&mut DepthCnt) -> Result<(), Box<dyn Error>> {
+fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
 
     match node.value.clone() {
         AstKind::Num(n) => {
             writeln!(output, "  mov ${}, %rax", n)?;
             return Ok(());
         },
-        AstKind::LocalVar { name: s, offset: _ } => {
+        AstKind::LocalVar { name: _s, offset: _ } => {
             gen_addr(node, output)?;
             writeln!(output, "  mov (%rax), %rax")?;
             return Ok(());
