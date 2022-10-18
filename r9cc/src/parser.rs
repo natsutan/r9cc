@@ -3,6 +3,7 @@ use crate::ast::*;
 use std::error::Error;
 use std::fmt;
 use crate::ast;
+use crate::tokenizer::TType::{Comma, LParen, RParen};
 
 
 #[derive(Debug)]
@@ -22,7 +23,6 @@ pub struct Parser {
     pub frame: Frame,
 }
 
-static mut lvar: Vec<LocalVariable> = vec![];
 
 impl Parser {
     pub fn new() -> Parser {
@@ -98,8 +98,28 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
             } else {
                 return Ok(new_if(cond, then, Loc { 0: token.line_num, 1: token.pos }));
             }
-        }
+        },
+        TType::For => {
+            tokenizer.consume();
+            skip(tokenizer, LParen)?;
+            let init = expr_stmt(tokenizer, frame)?;
+            //skip(tokenizer, Comma)?;
+            let tc = tokenizer.get();
+            let cond = match tc.ttype {
+                Comma => new_block(vec![], Loc { 0: token.line_num, 1: token.pos }),
+                _ => expr(tokenizer, frame)?
+            };
+            skip(tokenizer, Comma)?;
+            let ti = tokenizer.get();
+            let inc =  match ti.ttype {
+                RParen => new_block(vec![], Loc { 0: token.line_num, 1: token.pos }),
+                _ => expr(tokenizer, frame)?
+            };
+            skip(tokenizer, RParen)?;
+            let then = stmt(tokenizer, frame)?;
 
+            return Ok(new_for(init, cond, inc, then, Loc { 0: token.line_num, 1: token.pos }));
+        },
         _ =>  expr_stmt(tokenizer, frame)
     }
 }
@@ -146,6 +166,7 @@ fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseE
 
 fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
     let token = tokenizer.get();
+
     tokenizer.consume();
     match token.ttype {
         TType::Integer(n) => node_number(n, &token),
@@ -405,6 +426,14 @@ fn new_if(cond :Ast, then :Ast , loc:Loc) -> Ast {
     new_if_else(cond, then, els, loc.clone())
 }
 
+fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , loc:Loc) -> Ast {
+    let init_box = Box::new(init);
+    let cond_box = Box::new(cond);
+    let inc_box = Box::new(inc);
+    let then_box = Box::new(then);
+
+    Ast{value: AstKind::For {init: init_box, cond: cond_box, inc: inc_box, then: then_box}, loc: loc.clone()}
+}
 
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {
@@ -417,4 +446,13 @@ fn node_variable(name: String, offset :i64, token: &Token) ->  Result<Ast, Parse
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let astkind = AstKind::LocalVar{name, offset};
     Ok(Ast{ value: astkind, loc})
+}
+
+fn skip(tokenizer: &mut Tokenizer, token :TType) -> Result<(), ParseError> {
+    let token_next = tokenizer.get();
+    if token_next.ttype != token {
+        return Err(ParseError{err: format!("token {:?} must be {:?} ", token_next, token)});
+    }
+    tokenizer.consume();
+    Ok(())
 }

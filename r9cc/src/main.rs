@@ -1,5 +1,3 @@
-extern crate core;
-
 mod tokenizer;
 mod parser;
 mod generator;

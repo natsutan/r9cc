@@ -49,7 +49,7 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
         }
         AstKind::Block { body } => {
             for node in body.iter() {
-                gen_stmt(node, output, dc);
+                gen_stmt(node, output, dc)?;
             }
             Ok(())
         },
@@ -58,7 +58,7 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
             dc.label_up();
 
             gen_expr(cond, output, dc)?;
-            writeln!(output, "  cmp $0, %rax\n")?;
+            writeln!(output, "  cmp $0, %rax")?;
             writeln!(output, "  je  .L.else.{:?}", c)?;
             gen_stmt(then, output, dc)?;
             writeln!(output, "  jmp .L.end.{:?}", c)?;
@@ -67,6 +67,28 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
             writeln!(output, ".L.end.{:?}:", c)?;
             Ok(())
         },
+        AstKind::For{init, cond, inc, then} => {
+            let c = dc.label;
+            dc.label_up();
+
+            gen_stmt(init, output, dc)?;
+            writeln!(output, ".L.begin.{}:", c)?;
+            if !is_empty_block(cond) {
+                gen_expr(cond, output, dc)?;
+                writeln!(output, "  cmp $0, %rax")?;
+                writeln!(output, "  je  .L.end.{}", c)?;
+            }
+            gen_stmt(then, output, dc)?;
+
+            if !is_empty_block(inc) {
+                gen_expr(inc, output, dc)?;
+            }
+            writeln!(output, "  jmp .L.begin.{}", c)?;
+            writeln!(output, ".L.end.{}:", c)?;
+
+            Ok(())
+        },
+
         _ => Err(Box::new(CodeGenError{err: format!("invalid statement")}))
     }
 }
@@ -89,7 +111,7 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
     match &program[0].value {
         AstKind::Block{body} => {
           for node in body.iter() {
-              gen_stmt(node, output, &mut dc);
+              gen_stmt(node, output, &mut dc)?;
           }
         },
         _ => return Err(Box::new(CodeGenError{err: format!("Program must be block")})),
@@ -187,5 +209,14 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             Ok(())
         }
         _ => return  Err(Box::new(CodeGenError{err: format!("GEN: Invalid expression.")})),
+    }
+}
+
+fn is_empty_block(node: &Ast) -> bool {
+    match node.value.clone() {
+        AstKind::Block{body}=> {
+            body.len() == 0
+        },
+        _ => false
     }
 }

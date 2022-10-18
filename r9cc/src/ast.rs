@@ -34,19 +34,6 @@ pub enum UniOpKind {
 }
 pub type UniOp = Annot<UniOpKind>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum BlockKind {
-    NdBlock,
-}
-pub type Block = Annot<BlockKind>;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum IfKind {
-    NdIf,
-}
-pub type If_ = Annot<IfKind>;
-
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstKind {
@@ -56,6 +43,7 @@ pub enum AstKind {
     UniOp { op: UniOp, l: Box<Ast>},
     Block { body: Vec<Box<Ast>>},
     If_ {cond: Box<Ast>, then: Box<Ast>, els : Box<Ast>},
+    For {init: Box<Ast>, cond: Box<Ast>, inc: Box<Ast>, then: Box<Ast>},
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,5 +152,28 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
 
             return Ok(next_cnt)
         }
+        AstKind::For {init, cond, inc, then} => {
+            writeln!(file, "{}", format!("{}[label=FOR]", self_node_name))?;
+            let mut next_cnt = cnt;
+
+            let init_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, init_node_name))?;
+            next_cnt = write_node(init, file ,next_cnt + 1)?;
+
+            let cond_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, cond_node_name))?;
+            next_cnt = write_node(cond, file ,next_cnt + 1)?;
+
+            let inc_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, inc_node_name))?;
+            next_cnt = write_node(inc, file ,next_cnt + 1)?;
+
+            let then_node_name = node_name(next_cnt+1);
+            writeln!(file, "{}", format!("{} -> {}", self_node_name, then_node_name))?;
+            next_cnt = write_node(then, file ,next_cnt + 1)?;
+
+            return Ok(next_cnt)
+        }
+
     }
 }

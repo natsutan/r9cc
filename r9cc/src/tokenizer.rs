@@ -13,6 +13,7 @@ pub enum TType {
     Identifier(String),
     If,
     Else,
+    For,
     Comma,
     Return,
     EOF,
@@ -135,27 +136,16 @@ impl Tokenizer {
                         s.push(c);
                         if let Ok(val) = s.parse::<i64> () {
                             self.tokens.push(Token::new(TType::Integer(val), self.src_line_num, idx));
-                            s = "".to_string();
                         } else {
                             match &*s {
-                                "return" => {
-                                    self.tokens.push(Token::new(TType::Return, self.src_line_num, idx));
-                                    s = "".to_string();
-                                }
-                                "if" => {
-                                    self.tokens.push(Token::new(TType::If, self.src_line_num, idx));
-                                    s = "".to_string();
-                                }
-                                "else" => {
-                                    self.tokens.push(Token::new(TType::Else, self.src_line_num, idx));
-                                    s = "".to_string();
-                                }
-                                _ => {
-                                    self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx));
-                                    s = "".to_string();
-                                }
+                                "return" => self.tokens.push(Token::new(TType::Return, self.src_line_num, idx)),
+                                "if" => self.tokens.push(Token::new(TType::If, self.src_line_num, idx)),
+                                "else" => self.tokens.push(Token::new(TType::Else, self.src_line_num, idx)),
+                                "for" => self.tokens.push(Token::new(TType::For, self.src_line_num, idx)),
+                                _ =>  self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx)),
                             }
                         }
+                        s = "".to_string();
                     }
                 },
                 _ => println!("Tokenize error {}", c),
@@ -170,6 +160,7 @@ impl Tokenizer {
             Token::new(TType::EOF, self.src_line_num, 0)
         } else {
             let t = self.tokens[self.token_pos].clone();
+            //println!("[TOKEN get]: {:?}", t);
             t
         }
     }
