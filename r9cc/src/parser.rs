@@ -65,7 +65,7 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
             let token_comma = tokenizer.get();
             if token_comma.ttype == TType::Comma {
                 tokenizer.consume();
-                let node = new_unary(UniOpKind::NdReturn, node_l, Loc { 0: token.line_num, 1: token.pos });
+                let node = new_unary(UniOpKind::NdReturn, node_l, &token);
                 Ok(node)
             } else {
                 return Err(ParseError{err: format!("token {:?} must be ;", token_comma)})
@@ -94,9 +94,9 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
             if token_else.ttype == TType::Else {
                 tokenizer.consume();
                 let els = stmt(tokenizer, frame)?;
-                return Ok(new_if_else(cond, then, els, Loc { 0: token.line_num, 1: token.pos }));
+                return Ok(new_if_else(cond, then, els, &token));
             } else {
-                return Ok(new_if(cond, then, Loc { 0: token.line_num, 1: token.pos }));
+                return Ok(new_if(cond, then, &token));
             }
         },
         TType::For => {
@@ -106,19 +106,19 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
             //skip(tokenizer, Comma)?;
             let tc = tokenizer.get();
             let cond = match tc.ttype {
-                Comma => new_block(vec![], Loc { 0: token.line_num, 1: token.pos }),
+                Comma => new_block(vec![], &token),
                 _ => expr(tokenizer, frame)?
             };
             skip(tokenizer, Comma)?;
             let ti = tokenizer.get();
             let inc =  match ti.ttype {
-                RParen => new_block(vec![], Loc { 0: token.line_num, 1: token.pos }),
+                RParen => new_block(vec![], &token),
                 _ => expr(tokenizer, frame)?
             };
             skip(tokenizer, RParen)?;
             let then = stmt(tokenizer, frame)?;
 
-            return Ok(new_for(init, cond, inc, then, Loc { 0: token.line_num, 1: token.pos }));
+            return Ok(new_for(init, cond, inc, then, &token));
         },
         _ =>  expr_stmt(tokenizer, frame)
     }
@@ -127,7 +127,7 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
 
 // stmt = expr-stmt
 fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
-    let token_head = tokenizer.get();
+    let _token_head = tokenizer.get();
     let mut body :Vec<Box<Ast>> =  vec![];
 
     let mut token = tokenizer.get();
@@ -137,7 +137,7 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Pa
         token = tokenizer.get();
     }
     tokenizer.consume();
-    let node_block = new_block(body, Loc { 0: token_head.line_num, 1: token_head.pos });
+    let node_block = new_block(body, &token);
 
     Ok(node_block)
 }
@@ -148,12 +148,12 @@ fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseE
     let token = tokenizer.get();
     if token.ttype == TType::Comma {
         tokenizer.consume();
-        let node = new_block(vec![], Loc { 0: token.line_num, 1: token.pos });
+        let node = new_block(vec![], &token);
         return Ok(node)
     }
 
     let node_expr = expr(tokenizer, frame)?;
-    let node = new_unary(UniOpKind::NdExprStmt, node_expr, Loc { 0: token.line_num, 1: token.pos });
+    let node = new_unary(UniOpKind::NdExprStmt, node_expr, &token);
 
     let token_comma = tokenizer.get();
     if token_comma.ttype != TType::Comma {
@@ -207,18 +207,19 @@ fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
 
     loop {
         let next_token = tokenizer.get();
+        let token_loc = next_token.clone();
         match next_token.ttype {
             TType::Operator(s) => {
                 match &*s {
                     "*" => {
                         tokenizer.consume();
                         let node_r = unary(tokenizer, frame)?;
-                        node = new_node(BinOpKind::Mult, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        node = new_node(BinOpKind::Mult, node, node_r, &token_loc);
                     }
                     "/" => {
                         tokenizer.consume();
                         let node_r = unary(tokenizer, frame)?;
-                        node = new_node(BinOpKind::Div, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        node = new_node(BinOpKind::Div, node, node_r, &token_loc);
                     }
                     _ => return Ok(node),
                 }
@@ -237,14 +238,14 @@ fn expr(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError
 fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
     let mut node = equality(tokenizer, frame)?;
     let token = tokenizer.get();
-
+    let token_loc = token.clone();
     match token.ttype {
         TType::Operator(s) => {
             match &*s {
                 "=" => {
                     tokenizer.consume();
                     let node_r = assign(tokenizer, frame)?;
-                    node = new_node(BinOpKind::Assign, node, node_r, Loc { 0: token.line_num, 1: token.pos });
+                    node = new_node(BinOpKind::Assign, node, node_r, &token_loc);
                     return Ok(node);
                 },
                 _ => return  Ok(node),
@@ -261,18 +262,19 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> 
 
     loop {
         let next_token = tokenizer.get();
+        let token_loc = next_token.clone();
         match next_token.ttype {
             TType::Operator(s) => {
                 match &*s {
                     "+" => {
                         tokenizer.consume();
                         let node_r = mul(tokenizer, frame)?;
-                        node = new_node(BinOpKind::Add, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                        node = new_node(BinOpKind::Add, node, node_r, &token_loc);
                     }
                     "-" => {
                         tokenizer.consume();
                         let node_r = mul(tokenizer, frame)?;
-                        node = new_node(BinOpKind::Sub, node, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                        node = new_node(BinOpKind::Sub, node, node_r, &token_loc);
                     }
                     _ => return Ok(node),
                 }
@@ -287,6 +289,7 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> 
 
 fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
     let next_token = tokenizer.get();
+    let token_loc = next_token.clone();
     match next_token.ttype {
         TType::Operator(s) => {
             match &*s {
@@ -299,7 +302,7 @@ fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseErro
                     tokenizer.consume();
                     let node_0 = node_number(0, &dummy_token)?;
                     let node_r = primary(tokenizer, frame)?;
-                    let node = new_node(BinOpKind::Sub, node_0, node_r, Loc{0:next_token.line_num, 1:next_token.pos});
+                    let node = new_node(BinOpKind::Sub, node_0, node_r, &token_loc);
                     return Ok(node);
                 },
                 _ => return primary(tokenizer, frame),
@@ -316,19 +319,20 @@ fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseE
 
     loop {
         let next_token = tokenizer.get();
+        let next_token_loc = next_token.clone();
         match next_token.ttype {
             TType::Operator(s) => {
                 match &*s {
                     "==" => {
                         tokenizer.consume();
                         let node_r = relational(tokenizer, frame)?;
-                        let node = new_node(BinOpKind::Eq, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        let node = new_node(BinOpKind::Eq, node, node_r, &next_token_loc);
                         return Ok(node);
                     },
                     "!=" => {
                         tokenizer.consume();
                         let node_r = relational(tokenizer, frame)?;
-                        let node = new_node(BinOpKind::Ne, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        let node = new_node(BinOpKind::Ne, node, node_r, &next_token_loc);
                         return Ok(node);
                     },
                     _ => {
@@ -351,31 +355,32 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Parse
 
     loop {
         let next_token = tokenizer.get();
+        let token_loc = next_token.clone();
         match next_token.ttype {
             TType::Operator(s) => {
                 match &*s {
                     "<" => {
                         tokenizer.consume();
                         let node_r = add(tokenizer, frame)?;
-                        let node = new_node(BinOpKind::Lt, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        let node = new_node(BinOpKind::Lt, node, node_r, &token_loc);
                         return Ok(node);
                     },
                     "<=" => {
                         tokenizer.consume();
                         let node_r = add(tokenizer, frame)?;
-                        let node = new_node(BinOpKind::Le, node, node_r, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        let node = new_node(BinOpKind::Le, node, node_r, &token_loc);
                         return Ok(node);
                     },
                     ">" => {
                         tokenizer.consume();
                         let node_l = add(tokenizer, frame)?;
-                        let node = new_node(BinOpKind::Lt, node_l, node, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        let node = new_node(BinOpKind::Lt, node_l, node, &token_loc);
                         return Ok(node);
                     },
                     ">=" => {
                         tokenizer.consume();
                         let node_l = add(tokenizer, frame)?;
-                        let node = new_node(BinOpKind::Le, node_l, node, Loc { 0: next_token.line_num, 1: next_token.pos });
+                        let node = new_node(BinOpKind::Le, node_l, node, &token_loc);
                         return Ok(node);
                     },
                     _ => {
@@ -390,49 +395,46 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Parse
     }
 }
 
-fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, loc:Loc) -> Ast {
-
+fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
     let binop  = ast::BinOp{ value:op, loc: loc.clone()};
     let astkind = ast::AstKind::BinOp{op: binop, l: Box::new(l), r: Box::new(r)};
-    let ast: Ast = Ast{value: astkind, loc};
-    ast
+    Ast{value: astkind, loc}
 }
 
-fn new_unary(op :ast::UniOpKind, l: Ast, loc:Loc) -> Ast {
-
+fn new_unary(op :ast::UniOpKind, l: Ast, token: &Token) -> Ast {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
     let uniop  = ast::UniOp{ value:op, loc: loc.clone()};
     let astkind = ast::AstKind::UniOp{op: uniop, l: Box::new(l)};
-    let ast: Ast = Ast{value: astkind, loc};
-    ast
+    Ast{value: astkind, loc}
 }
 
-fn new_block(body :Vec<Box<Ast>>, loc:Loc) -> Ast {
-    let ast: Ast = Ast{value: AstKind::Block { body }, loc: loc.clone()};
-    ast
+fn new_block(body :Vec<Box<Ast>>, token: &Token) -> Ast {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    Ast{value: AstKind::Block { body }, loc}
 }
 
-fn new_if_else(cond :Ast, then :Ast, els :Ast, loc:Loc) -> Ast {
+fn new_if_else(cond :Ast, then :Ast, els :Ast, token: &Token) -> Ast {
     let cond_box = Box::new(cond);
     let then_box = Box::new(then);
     let els_box = Box::new(els);
-
-    let ast: Ast = Ast{value: AstKind::If_ {cond: cond_box , then: then_box, els: els_box }, loc: loc.clone()};
-    ast
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    Ast{value: AstKind::If_ {cond: cond_box , then: then_box, els: els_box }, loc}
 }
 
 
-fn new_if(cond :Ast, then :Ast , loc:Loc) -> Ast {
-    let els = new_block(vec![], loc.clone());
-    new_if_else(cond, then, els, loc.clone())
+fn new_if(cond :Ast, then :Ast , token: &Token) -> Ast {
+    let els = new_block(vec![],  token);
+    new_if_else(cond, then, els, token)
 }
 
-fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , loc:Loc) -> Ast {
+fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
     let init_box = Box::new(init);
     let cond_box = Box::new(cond);
     let inc_box = Box::new(inc);
     let then_box = Box::new(then);
-
-    Ast{value: AstKind::For {init: init_box, cond: cond_box, inc: inc_box, then: then_box}, loc: loc.clone()}
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    Ast{value: AstKind::For {init: init_box, cond: cond_box, inc: inc_box, then: then_box}, loc}
 }
 
 
