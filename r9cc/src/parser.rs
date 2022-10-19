@@ -120,6 +120,19 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
 
             return Ok(new_for(init, cond, inc, then, &token));
         },
+        TType::While => {
+            tokenizer.consume();
+            skip(tokenizer, LParen)?;
+            let cond = expr(tokenizer, frame)?;
+            skip(tokenizer, RParen)?;
+            let then = stmt(tokenizer, frame)?;
+
+            let init = new_block(vec![], &token);
+            let inc = new_block(vec![], &token);
+
+            return Ok(new_for(init, cond, inc, then, &token));
+
+        }
         _ =>  expr_stmt(tokenizer, frame)
     }
 }

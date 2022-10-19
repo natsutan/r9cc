@@ -71,7 +71,10 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
             let c = dc.label;
             dc.label_up();
 
-            gen_stmt(init, output, dc)?;
+            if !is_empty_block(init) {
+                gen_stmt(init, output, dc)?;
+            }
+
             writeln!(output, ".L.begin.{}:", c)?;
             if !is_empty_block(cond) {
                 gen_expr(cond, output, dc)?;

@@ -14,6 +14,7 @@ pub enum TType {
     If,
     Else,
     For,
+    While,
     Comma,
     Return,
     EOF,
@@ -142,6 +143,7 @@ impl Tokenizer {
                                 "if" => self.tokens.push(Token::new(TType::If, self.src_line_num, idx)),
                                 "else" => self.tokens.push(Token::new(TType::Else, self.src_line_num, idx)),
                                 "for" => self.tokens.push(Token::new(TType::For, self.src_line_num, idx)),
+                                "while" => self.tokens.push(Token::new(TType::While, self.src_line_num, idx)),
                                 _ =>  self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx)),
                             }
                         }
