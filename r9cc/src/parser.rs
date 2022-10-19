@@ -78,17 +78,9 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
         TType::If => {
             tokenizer.consume();
 
-            let token_lpalen = tokenizer.get();
-            if token_lpalen.ttype != TType::LParen {
-                return Err(ParseError{err: format!("token {:?} must be ( ", token_lpalen)})
-            }
-            tokenizer.consume();
+            skip(tokenizer, LParen)?;
             let cond = expr(tokenizer, frame)?;
-            let token_rpalen = tokenizer.get();
-            if token_rpalen.ttype != TType::RParen {
-                return Err(ParseError{err: format!("token {:?} must be ) ", token_rpalen)})
-            }
-            tokenizer.consume();
+            skip(tokenizer, RParen)?;
             let then = stmt(tokenizer, frame)?;
             let token_else = tokenizer.get();
             if token_else.ttype == TType::Else {
