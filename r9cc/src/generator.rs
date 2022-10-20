@@ -42,10 +42,11 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
                 UniOpKind::NdReturn => {
                     gen_expr(l, output, dc)?;
                     writeln!(output, "  jmp .L.return")?;
-                    Ok(())
                 }
-                UniOpKind::NdExprStmt => gen_expr(&l, output, dc)
+                UniOpKind::NdExprStmt => gen_expr(&l, output, dc)?,
+                _ => return Err(Box::new(CodeGenError{err: format!("invalid statement")})),
             }
+            Ok(())
         }
         AstKind::Block { body } => {
             for node in body.iter() {
@@ -128,11 +129,20 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
     Ok(())
 }
 
-fn gen_addr(node: &Ast, output : &mut File) -> Result<(), Box<dyn Error>> {
+fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match &node.value {
         AstKind::LocalVar { name: _, offset } => {
-            writeln!(output, "  lea {}(%rbp), %rax", -offset)?;
+            writeln!(output, "  lea {}(%rbp), %rax", offset)?;
             Ok(())
+        }
+        AstKind::UniOp {op, l} => {
+            match op.value {
+                UniOpKind::Deref => {
+                    gen_expr(l, output, dc)?;
+                    Ok(())
+                },
+                _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
+            }
         }
         _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
     }
@@ -161,13 +171,13 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             return Ok(());
         },
         AstKind::LocalVar { name: _s, offset: _ } => {
-            gen_addr(node, output)?;
+            gen_addr(node, output, dc)?;
             writeln!(output, "  mov (%rax), %rax")?;
             return Ok(());
         }
         AstKind::BinOp { op, l, r } => {
             if op.value == BinOpKind::Assign {
-                gen_addr(&l, output)?;
+                gen_addr(&l, output, dc)?;
                 push(output, dc)?;
                 gen_expr(&r, output, dc)?;
                 pop(&"%rdi".to_string(), output, dc)?;
@@ -211,6 +221,22 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             }
             Ok(())
         }
+        AstKind::UniOp{op, l} => {
+            match op.value {
+                UniOpKind::Deref => {
+                    writeln!(output, "# deref")?;
+                    gen_expr(&l, output, dc)?;
+                    writeln!(output, "  mov (%rax), %rax")?;
+
+                }
+                UniOpKind::Addr => {
+                    writeln!(output, "# addr")?;
+                    gen_addr(&l, output, dc)?;
+                }
+                _ => return  Err(Box::new(CodeGenError{err: format!("GEN: Invalid expression.")})),
+            }
+            Ok(())
+        } ,
         _ => return  Err(Box::new(CodeGenError{err: format!("GEN: Invalid expression.")})),
     }
 }

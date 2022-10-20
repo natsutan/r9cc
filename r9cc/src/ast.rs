@@ -31,6 +31,8 @@ pub type BinOp = Annot<BinOpKind>;
 pub enum UniOpKind {
     NdExprStmt,
     NdReturn,
+    Addr,
+    Deref,
 }
 pub type UniOp = Annot<UniOpKind>;
 
@@ -120,6 +122,8 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             let op_str = match op.value {
                 UniOpKind::NdExprStmt => "\"EXPR_STMT\"",
                 UniOpKind::NdReturn => "\"RETURN\"",
+                UniOpKind::Addr => "\"&\"",
+                UniOpKind::Deref => "\"*p\"",
             };
 
             writeln!(file, "{}", format!("{}[label={}]", self_node_name, op_str))?;

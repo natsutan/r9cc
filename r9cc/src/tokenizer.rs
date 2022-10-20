@@ -93,6 +93,7 @@ impl Tokenizer {
                 '-' => self.tokens.push(Token::new(TType::Operator("-".to_string()), self.src_line_num, idx)),
                 '*' => self.tokens.push(Token::new(TType::Operator("*".to_string()), self.src_line_num, idx)),
                 '/' => self.tokens.push(Token::new(TType::Operator("/".to_string()), self.src_line_num, idx)),
+                '&' => self.tokens.push(Token::new(TType::Operator("&".to_string()), self.src_line_num, idx)),
                 '(' => self.tokens.push(Token::new(TType::LParen, self.src_line_num, idx)),
                 ')' => self.tokens.push(Token::new(TType::RParen, self.src_line_num, idx)),
                 '{' => self.tokens.push(Token::new(TType::LBrace, self.src_line_num, idx)),

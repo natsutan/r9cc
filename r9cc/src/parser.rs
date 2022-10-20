@@ -187,7 +187,7 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseErr
                 }
                 Err(()) => {
                     // new node
-                    let offset = (frame.len() as i64 +  1) * 8;
+                    let offset = -(frame.len() as i64 +  1) * 8;
                     let new_lv = LocalVariable{name: name.clone(), offset};
                     frame.push(new_lv);
                     node_variable(name, offset, &tk)
@@ -295,6 +295,8 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> 
 fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
     let next_token = tokenizer.get();
     let token_loc = next_token.clone();
+    let dummy_token = tokenizer.get();
+
     match next_token.ttype {
         TType::Operator(s) => {
             match &*s {
@@ -303,13 +305,25 @@ fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseErro
                     return unary(tokenizer, frame);
                 },
                 "-" => {
-                    let dummy_token = tokenizer.get();
                     tokenizer.consume();
                     let node_0 = node_number(0, &dummy_token)?;
                     let node_r = primary(tokenizer, frame)?;
                     let node = new_node(BinOpKind::Sub, node_0, node_r, &token_loc);
                     return Ok(node);
                 },
+                "*" => {
+                    tokenizer.consume();
+                    let node_l = unary(tokenizer, frame)?;
+                    let node = new_unary(UniOpKind::Deref,  node_l, &token_loc);
+                    return Ok(node);
+                }
+                "&" => {
+                    tokenizer.consume();
+                    let node_l = unary(tokenizer, frame)?;
+                    let node = new_unary(UniOpKind::Addr, node_l,  &token_loc);
+                    return Ok(node);
+                }
+
                 _ => return primary(tokenizer, frame),
             }
         }
