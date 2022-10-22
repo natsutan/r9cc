@@ -131,7 +131,7 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
 
 fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match &node.value {
-        AstKind::LocalVar { name: _, offset } => {
+        AstKind::LocalVar { name: _, ntype: _, offset } => {
             writeln!(output, "  lea {}(%rbp), %rax", offset)?;
             Ok(())
         }
@@ -166,11 +166,11 @@ fn pop(s: &String, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Er
 fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
 
     match node.value.clone() {
-        AstKind::Num(n) => {
+        AstKind::Num{n, ntype:_}=> {
             writeln!(output, "  mov ${}, %rax", n)?;
             return Ok(());
         },
-        AstKind::LocalVar { name: _s, offset: _ } => {
+        AstKind::LocalVar { name: _s, ntype: _, offset: _ } => {
             gen_addr(node, output, dc)?;
             writeln!(output, "  mov (%rax), %rax")?;
             return Ok(());

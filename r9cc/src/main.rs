@@ -2,6 +2,7 @@ mod tokenizer;
 mod parser;
 mod generator;
 mod ast;
+mod typesys;
 
 
 use std::env;

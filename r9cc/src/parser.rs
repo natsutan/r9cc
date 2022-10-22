@@ -459,13 +459,13 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let astkind = AstKind::Num(n);
+    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, base: None }};
     Ok(Ast{ value: astkind, loc})
 }
 
 fn node_variable(name: String, offset :i64, token: &Token) ->  Result<Ast, ParseError> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let astkind = AstKind::LocalVar{name, offset};
+    let astkind = AstKind::LocalVar{name, ntype: NodeType{kind: NodeTypeKind::UnFixed, base: None }, offset};
     Ok(Ast{ value: astkind, loc})
 }
 

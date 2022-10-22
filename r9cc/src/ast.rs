@@ -36,11 +36,23 @@ pub enum UniOpKind {
 }
 pub type UniOp = Annot<UniOpKind>;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NodeTypeKind {
+    Int,
+    Ptr,
+    UnFixed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NodeType {
+    pub kind :NodeTypeKind,
+    pub base :Option<Box<NodeType>>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstKind {
-    Num(i64),
-    LocalVar{name: String, offset: i64 },
+    Num{n: i64, ntype :NodeType},
+    LocalVar{name: String, ntype: NodeType, offset: i64 },
     BinOp { op: BinOp, l: Box<Ast>, r: Box<Ast> },
     UniOp { op: UniOp, l: Box<Ast>},
     Block { body: Vec<Box<Ast>>},
@@ -84,7 +96,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
     let self_node_name = node_name(cnt);
 
     match &node.value {
-        AstKind::Num(n) => {
+        AstKind::Num{n, ntype:_n} => {
             writeln!(file, "{}", format!("{}[label={}]", self_node_name, n))?;
             return Ok(cnt)
         },
@@ -112,7 +124,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
 
             return Ok(right_cnt)
         },
-        AstKind::LocalVar{name, offset} => {
+        AstKind::LocalVar{name, ntype: _, offset} => {
             writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, name, offset))?;
             return Ok(cnt)
         }
