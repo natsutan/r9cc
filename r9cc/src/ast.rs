@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::path::Path;
 use std::fs::File;
+use crate::tokenizer::Token;
 //use std::io::prelude::*;
 
 
@@ -25,7 +26,15 @@ pub enum BinOpKind {
     Le,  // >
     Assign,
 }
-pub type BinOp = Annot<BinOpKind>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BinOp {
+    pub op: BinOpKind,
+    pub ntype: NodeType,
+    pub l: Box<Ast>,
+    pub r: Box<Ast>,
+    pub loc: Loc
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniOpKind {
@@ -52,9 +61,9 @@ pub struct NodeType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstKind {
     Num{n: i64, ntype :NodeType},
-    LocalVar{name: String, ntype: NodeType, offset: i64 },
-    BinOp { op: BinOp, l: Box<Ast>, r: Box<Ast> },
-    UniOp { op: UniOp, l: Box<Ast>},
+    LocalVar {name: String, ntype: NodeType, offset: i64 },
+    BinOp(BinOp),
+    UniOp { op: UniOp, ntype: NodeType, l: Box<Ast>},
     Block { body: Vec<Box<Ast>>},
     If_ {cond: Box<Ast>, then: Box<Ast>, els : Box<Ast>},
     For {init: Box<Ast>, cond: Box<Ast>, inc: Box<Ast>, then: Box<Ast>},
@@ -66,6 +75,17 @@ pub struct LocalVariable {
     pub offset: i64,
 }
 
+impl BinOp {
+    pub fn new(op:BinOpKind, l: Box<Ast>, r: Box<Ast>, token: &Token) -> BinOp {
+        let loc = Loc{ 0: token.line_num, 1:token.pos };
+        let ntype = NodeType{kind: NodeTypeKind::UnFixed, base: None};
+        BinOp { op, ntype, l, r, loc }
+    }
+
+    pub fn set_node_type(&mut self, node_type :NodeType) {
+        self.ntype = node_type.clone();
+    }
+}
 
 
 pub type Ast = Annot<AstKind>;
@@ -100,10 +120,10 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             writeln!(file, "{}", format!("{}[label={}]", self_node_name, n))?;
             return Ok(cnt)
         },
-        AstKind::BinOp{op, l, r} => {
-            let left_cnt = write_node(&l, file, cnt + 1)?;
-            let right_cnt = write_node(&r, file, left_cnt + 1)?;
-            let op_str = match op.value {
+        AstKind::BinOp(binop) => {
+            let left_cnt = write_node(&binop.l, file, cnt + 1)?;
+            let right_cnt = write_node(&binop.r, file, left_cnt + 1)?;
+            let op_str = match binop.op {
                 BinOpKind::Add  => "\"+\"",
                 BinOpKind::Sub  => "\"-\"",
                 BinOpKind::Mult => "\"*\"",
@@ -128,7 +148,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, name, offset))?;
             return Ok(cnt)
         }
-        AstKind::UniOp {op, l} => {
+        AstKind::UniOp {op, ntype, l} => {
             let left_cnt = write_node(&l, file, cnt + 1)?;
             let left_node_name = node_name(cnt + 1);
             let op_str = match op.value {

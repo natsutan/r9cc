@@ -416,15 +416,15 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Parse
 
 fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let binop  = ast::BinOp{ value:op, loc: loc.clone()};
-    let astkind = ast::AstKind::BinOp{op: binop, l: Box::new(l), r: Box::new(r)};
-    Ast{value: astkind, loc}
+    let binop  = BinOp::new(op, Box::new(l),  Box::new(r), token);
+    //let astkind = ast::AstKind::BinOp{op: binop, ntype: NodeType{kind: NodeTypeKind::UnFixed, base: None }, l: Box::new(l), r: Box::new(r)};
+    Ast{value: AstKind::BinOp(binop), loc}
 }
 
 fn new_unary(op :ast::UniOpKind, l: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let uniop  = ast::UniOp{ value:op, loc: loc.clone()};
-    let astkind = ast::AstKind::UniOp{op: uniop, l: Box::new(l)};
+    let astkind = ast::AstKind::UniOp{op: uniop, ntype: NodeType{kind: NodeTypeKind::UnFixed, base: None }, l: Box::new(l)};
     Ast{value: astkind, loc}
 }
 

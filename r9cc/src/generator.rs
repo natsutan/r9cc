@@ -37,7 +37,7 @@ impl GenCnt {
 
 fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
-        AstKind::UniOp {op, l} => {
+        AstKind::UniOp {op, ntype, l} => {
             match op.value {
                 UniOpKind::NdReturn => {
                     gen_expr(l, output, dc)?;
@@ -135,7 +135,7 @@ fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             writeln!(output, "  lea {}(%rbp), %rax", offset)?;
             Ok(())
         }
-        AstKind::UniOp {op, l} => {
+        AstKind::UniOp {op, ntype, l} => {
             match op.value {
                 UniOpKind::Deref => {
                     gen_expr(l, output, dc)?;
@@ -175,21 +175,21 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             writeln!(output, "  mov (%rax), %rax")?;
             return Ok(());
         }
-        AstKind::BinOp { op, l, r } => {
-            if op.value == BinOpKind::Assign {
-                gen_addr(&l, output, dc)?;
+        AstKind::BinOp(binop) => {
+            if binop.op == BinOpKind::Assign {
+                gen_addr(&binop.l, output, dc)?;
                 push(output, dc)?;
-                gen_expr(&r, output, dc)?;
+                gen_expr(&binop.r, output, dc)?;
                 pop(&"%rdi".to_string(), output, dc)?;
                 writeln!(output, "  mov %rax, (%rdi)")?;
                 return Ok(())
             }
-            gen_expr(&r, output, dc)?;
+            gen_expr(&binop.r, output, dc)?;
             push(output, dc)?;
-            gen_expr(&l, output, dc)?;
+            gen_expr(&binop.l, output, dc)?;
             pop(&"%rdi".to_string(), output, dc)?;
 
-            match op.value {
+            match binop.op {
                 BinOpKind::Add => writeln!(output, "  add %rdi, %rax")?,
                 BinOpKind::Sub => writeln!(output, "  sub %rdi, %rax")?,
                 BinOpKind::Mult => writeln!(output, "  imul %rdi, %rax")?,
@@ -217,11 +217,11 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
                     writeln!(output, "  setle %al")?;
                     writeln!(output, "  movzb %al, %rax")?;
                 }
-                _ => return Err(Box::new(CodeGenError { err: format!("GEN: Invalid Binop {:?}.", op) }))
+                _ => return Err(Box::new(CodeGenError { err: format!("GEN: Invalid Binop {:?}.", binop) }))
             }
             Ok(())
         }
-        AstKind::UniOp{op, l} => {
+        AstKind::UniOp{op, ntype,  l} => {
             match op.value {
                 UniOpKind::Deref => {
                     writeln!(output, "# deref")?;
