@@ -26,10 +26,11 @@ pub fn is_integer(node :&Ast) -> bool {
     }
 }
 
-fn add_type_for_body(body : &mut Vec<Box<Ast>>) {
+fn add_type_for_body(body : &mut Vec<Box<Ast>>) -> Result<Option<NodeType>, Box<dyn Error>> {
     for i in 0..body.len() {
-        add_type(&mut *body[i]);
+        add_type(&mut *body[i])?;
     }
+    Ok(None)
 }
 
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
@@ -41,8 +42,7 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
             Ok(Some(ntype.clone()))
         },
         AstKind::Block { body} => {
-            add_type_for_body(body);
-            Ok(None)
+            add_type_for_body(body)
         },
         AstKind::If_ {cond, then , els } => {
             add_type(cond)?;
@@ -77,21 +77,13 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                         }
                     }
                 }
-                _ => return Ok(None)
+                BinOpKind::Eq | BinOpKind::Ne | BinOpKind::Lt | BinOpKind::Le => {
+                    let ntype = NodeType{kind: NodeTypeKind::Int, base: None};
+                    binop.set_node_type(ntype.clone());
+                    return Ok(Some(ntype));
+                }
             }
         }
-        //     // Add,
-        //     // Sub,
-        //     // Mult,
-        //     // Div,
-        //     // Eq,  // ==
-        //     // Ne,  // !=
-        //     // Lt,  // <
-        //     // Le,  // >
-        //     // Assign,
-        //     None
-        // },
-        // // UniOp { op: UniOp, l: Box<Ast>},
         _ => Ok(None)
     }
 }

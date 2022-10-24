@@ -37,13 +37,21 @@ pub struct BinOp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct UniOp {
+    pub op: UniOpKind,
+    pub ntype: NodeType,
+    pub l: Box<Ast>,
+    pub loc: Loc
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniOpKind {
     NdExprStmt,
     NdReturn,
     Addr,
     Deref,
 }
-pub type UniOp = Annot<UniOpKind>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NodeTypeKind {
@@ -63,7 +71,7 @@ pub enum AstKind {
     Num{n: i64, ntype :NodeType},
     LocalVar {name: String, ntype: NodeType, offset: i64 },
     BinOp(BinOp),
-    UniOp { op: UniOp, ntype: NodeType, l: Box<Ast>},
+    UniOp(UniOp),
     Block { body: Vec<Box<Ast>>},
     If_ {cond: Box<Ast>, then: Box<Ast>, els : Box<Ast>},
     For {init: Box<Ast>, cond: Box<Ast>, inc: Box<Ast>, then: Box<Ast>},
@@ -80,6 +88,18 @@ impl BinOp {
         let loc = Loc{ 0: token.line_num, 1:token.pos };
         let ntype = NodeType{kind: NodeTypeKind::UnFixed, base: None};
         BinOp { op, ntype, l, r, loc }
+    }
+
+    pub fn set_node_type(&mut self, node_type :NodeType) {
+        self.ntype = node_type.clone();
+    }
+}
+
+impl UniOp {
+    pub fn new(op:UniOpKind, l: Box<Ast>, token: &Token) -> UniOp {
+        let loc = Loc{ 0: token.line_num, 1:token.pos };
+        let ntype = NodeType{kind: NodeTypeKind::UnFixed, base: None};
+        UniOp { op, ntype, l, loc }
     }
 
     pub fn set_node_type(&mut self, node_type :NodeType) {
@@ -148,10 +168,10 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, name, offset))?;
             return Ok(cnt)
         }
-        AstKind::UniOp {op, ntype, l} => {
-            let left_cnt = write_node(&l, file, cnt + 1)?;
+        AstKind::UniOp(uniop)=> {
+            let left_cnt = write_node(&uniop.l, file, cnt + 1)?;
             let left_node_name = node_name(cnt + 1);
-            let op_str = match op.value {
+            let op_str = match uniop.op {
                 UniOpKind::NdExprStmt => "\"EXPR_STMT\"",
                 UniOpKind::NdReturn => "\"RETURN\"",
                 UniOpKind::Addr => "\"&\"",

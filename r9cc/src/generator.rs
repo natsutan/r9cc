@@ -37,13 +37,13 @@ impl GenCnt {
 
 fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
-        AstKind::UniOp {op, ntype, l} => {
-            match op.value {
+        AstKind::UniOp(uniop) => {
+            match uniop.op {
                 UniOpKind::NdReturn => {
-                    gen_expr(l, output, dc)?;
+                    gen_expr(&uniop.l, output, dc)?;
                     writeln!(output, "  jmp .L.return")?;
                 }
-                UniOpKind::NdExprStmt => gen_expr(&l, output, dc)?,
+                UniOpKind::NdExprStmt => gen_expr(&uniop.l, output, dc)?,
                 _ => return Err(Box::new(CodeGenError{err: format!("invalid statement")})),
             }
             Ok(())
@@ -135,10 +135,10 @@ fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             writeln!(output, "  lea {}(%rbp), %rax", offset)?;
             Ok(())
         }
-        AstKind::UniOp {op, ntype, l} => {
-            match op.value {
+        AstKind::UniOp(uniop)=> {
+            match uniop.op {
                 UniOpKind::Deref => {
-                    gen_expr(l, output, dc)?;
+                    gen_expr(&uniop.l, output, dc)?;
                     Ok(())
                 },
                 _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
@@ -221,17 +221,17 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             }
             Ok(())
         }
-        AstKind::UniOp{op, ntype,  l} => {
-            match op.value {
+        AstKind::UniOp(uniop) => {
+            match uniop.op {
                 UniOpKind::Deref => {
                     writeln!(output, "# deref")?;
-                    gen_expr(&l, output, dc)?;
+                    gen_expr(&uniop.l, output, dc)?;
                     writeln!(output, "  mov (%rax), %rax")?;
 
                 }
                 UniOpKind::Addr => {
                     writeln!(output, "# addr")?;
-                    gen_addr(&l, output, dc)?;
+                    gen_addr(&uniop.l, output, dc)?;
                 }
                 _ => return  Err(Box::new(CodeGenError{err: format!("GEN: Invalid expression.")})),
             }
