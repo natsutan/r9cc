@@ -33,6 +33,19 @@ fn add_type_for_body(body : &mut Vec<Box<Ast>>) -> Result<Option<NodeType>, Box<
     Ok(None)
 }
 
+fn new_pointer(dst :&NodeType) -> Result<NodeType, Box<dyn Error>> {
+    let dst_c = dst.clone();
+
+    let base_type = match dst_c.base {
+        Some(b) => b,
+        None => {
+            return Err(Box::new(TypeError{err: format!("Pointer has no type {:?}", dst_c)}));
+        }
+    };
+
+    Ok(NodeType{kind: NodeTypeKind::Ptr, base: Some(base_type)})
+}
+
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
     match &mut node.value {
         AstKind::Num{n:_, ntype} => {
@@ -82,6 +95,48 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                     binop.set_node_type(ntype.clone());
                     return Ok(Some(ntype));
                 }
+            }
+        }
+        AstKind::UniOp(uniop) => {
+            let ltype = add_type(&mut uniop.l)?;
+
+            match uniop.op {
+                UniOpKind::Addr => {
+                    let dst_type = match ltype {
+                        Some(t) => t,
+                        None => {
+                            return Err(Box::new(TypeError{err: format!("Pointer has no type {:?}", ltype)}));
+                        }
+                    };
+
+                    let ntype = new_pointer(&dst_type)?;
+                    uniop.set_node_type(ntype.clone());
+                    Ok(Some(ntype))
+                },
+                UniOpKind::Deref => {
+                    let int_type = NodeType{kind: NodeTypeKind::Int, base: None};
+                    let dst_type = match ltype {
+                        Some(t) => t,
+                        None => {
+                            uniop.set_node_type(int_type.clone());
+                            return Ok(Some(int_type));
+                        }
+                    };
+                    if dst_type.kind == NodeTypeKind::Ptr {
+                        let base_type = match dst_type.base {
+                            Some(b) => b,
+                            None => {
+                                uniop.set_node_type(int_type.clone());
+                                return Ok(Some(int_type));
+                            }
+                        };
+                        uniop.set_node_type(*base_type.clone());
+                        return Ok(Some(*base_type))
+                    }
+                    uniop.set_node_type(int_type.clone());
+                    return Ok(Some(int_type));
+                },
+                _ => Ok(None)
             }
         }
         _ => Ok(None)
