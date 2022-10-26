@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::fmt;
 use crate::ast::*;
-use crate::generator::CodeGenError;
 
 #[derive(Debug)]
 pub struct TypeError {

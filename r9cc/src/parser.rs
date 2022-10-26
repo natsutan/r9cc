@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fmt;
 use crate::ast;
 use crate::tokenizer::TType::{Comma, LParen, RParen};
+use crate::typesys::{add_type, is_integer};
 
 
 #[derive(Debug)]
@@ -32,10 +33,10 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), ParseError> {
+    pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), Box<dyn Error>> {
         let token = tokenizer.get();
         if token.ttype != TType::LBrace {
-            return Err(ParseError{err: format!("the first {{ is not found  {:?}", token)})
+            return Err(Box::new(ParseError{err: format!("the first {{ is not found  {:?}", token)}))
         }
         tokenizer.consume();
         let node = compound_stmt(tokenizer, &mut self.frame)?;
@@ -56,7 +57,7 @@ fn find_lvar(name: &String, frame: &Frame) -> Result<LocalVariable, ()> {
 
 
 // stmt = expr-stmt
-fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let token = tokenizer.get();
     match token.ttype {
         TType::Return => {
@@ -68,7 +69,7 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
                 let node = new_unary(UniOpKind::NdReturn, node_l, &token);
                 Ok(node)
             } else {
-                return Err(ParseError{err: format!("token {:?} must be ;", token_comma)})
+                return Err(Box::new(ParseError{err: format!("token {:?} must be ;", token_comma)}))
             }
         }
         TType::LBrace => {
@@ -131,13 +132,14 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
 
 
 // stmt = expr-stmt
-fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let _token_head = tokenizer.get();
     let mut body :Vec<Box<Ast>> =  vec![];
 
     let mut token = tokenizer.get();
     while token.ttype != TType::RBrace {
-        let st = stmt(tokenizer, frame)?;
+        let mut st = stmt(tokenizer, frame)?;
+        add_type(&mut st)?;
         body.push(Box::from(st));
         token = tokenizer.get();
     }
@@ -148,7 +150,7 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Pa
 }
 
 // expr-stmt = expr ";"
-fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
 
     let token = tokenizer.get();
     if token.ttype == TType::Comma {
@@ -162,14 +164,14 @@ fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseE
 
     let token_comma = tokenizer.get();
     if token_comma.ttype != TType::Comma {
-        return Err(ParseError{err: format!("expr_stmt must end ; {:?}) ", token_comma)})
+        return Err(Box::new(ParseError{err: format!("expr_stmt must end ; {:?}) ", token_comma)}))
     }
     tokenizer.consume();
 
     return  Ok(node)
 }
 
-fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let token = tokenizer.get();
 
     tokenizer.consume();
@@ -201,13 +203,13 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseErr
                 tokenizer.consume();
                 return Ok(node);
             }
-            Err(ParseError{err: format!("token {:?} must be )", token)})
+            Err(Box::new(ParseError{err: format!("token {:?} must be )", token)}))
         }
-        _ => Err(ParseError{err: format!("token {:?} must be number", token)}),
+        _ => Err(Box::new(ParseError{err: format!("token {:?} must be number", token)})),
     }
 }
 
-fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let mut node = unary(tokenizer, frame)?;
 
     loop {
@@ -236,11 +238,11 @@ fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError>
     }
 }
 
-fn expr(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn expr(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     return assign(tokenizer, frame);
 }
 
-fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let mut node = equality(tokenizer, frame)?;
     let token = tokenizer.get();
     let token_loc = token.clone();
@@ -262,7 +264,7 @@ fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseEr
 }
 
 
-fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> {
+fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let mut node = mul(tokenizer, frame)?;
 
     loop {
@@ -273,13 +275,13 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> 
                 match &*s {
                     "+" => {
                         tokenizer.consume();
-                        let node_r = mul(tokenizer, frame)?;
-                        node = new_node(BinOpKind::Add, node, node_r, &token_loc);
+                        let mut node_r = mul(tokenizer, frame)?;
+                        node = new_add(&mut node, &mut node_r, &token_loc)?;
                     }
                     "-" => {
                         tokenizer.consume();
-                        let node_r = mul(tokenizer, frame)?;
-                        node = new_node(BinOpKind::Sub, node, node_r, &token_loc);
+                        let mut node_r = mul(tokenizer, frame)?;
+                        node = new_sub(&mut node, &mut node_r, &token_loc)?;
                     }
                     _ => return Ok(node),
                 }
@@ -292,7 +294,7 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> 
 
 }
 
-fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let next_token = tokenizer.get();
     let token_loc = next_token.clone();
     let dummy_token = tokenizer.get();
@@ -333,7 +335,7 @@ fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseErro
     }
 }
 
-fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseError> {
+fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let node = relational(tokenizer, frame)?;
 
     loop {
@@ -369,7 +371,7 @@ fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, ParseE
 
 
 
-fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, ParseError> {
+fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let node = add(tokenizer, frame)?;
 
     loop {
@@ -414,6 +416,9 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Parse
     }
 }
 
+
+
+
 fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let binop  = BinOp::new(op, Box::new(l),  Box::new(r), token);
@@ -454,23 +459,94 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
     Ast{value: AstKind::For {init: init_box, cond: cond_box, inc: inc_box, then: then_box}, loc}
 }
 
+fn get_type(node :&Ast) -> Option<NodeType> {
+    match node.clone().value {
+        AstKind::BinOp(binop) => Some(binop.ntype.clone()),
+        AstKind::UniOp(uniop) => Some(uniop.ntype.clone()),
+        _ => None
+    }
+}
 
-fn node_number(n: i64, token :&Token) -> Result<Ast, ParseError> {
+
+fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    add_type(l)?;
+    add_type(r)?;
+
+    if is_integer(l) && is_integer(r) {
+        let binop  = BinOp::new(BinOpKind::Add, Box::new(l.clone()),  Box::new(r.clone()), token);
+        return Ok(Ast{value: AstKind::BinOp(binop), loc});
+    }
+
+    let ltype0 = get_type(&l);
+    let rtype0 = get_type(&r);
+
+    let (ltype1, rtype1) = match (ltype0, rtype0) {
+        (Some(l), Some(r)) => (l, r),
+        _ => return Err(Box::new(ParseError{err: format!("operand of add has no type {:?} {:?} ", l, r)})),
+    };
+
+    let (lhs, rhs) = match (&ltype1.base, &rtype1.base) {
+        (None, Some(_b)) => (r, l), //num + pointer swap
+        _=> (l, r)
+    };
+
+    //ltype2:pointer
+    //rtype2:num
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    let obj_size = node_number(8, &token)?;
+    let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size, &token);
+    let binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul, token);
+    return Ok(binop);
+}
+
+fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    add_type(l)?;
+    add_type(r)?;
+
+    if is_integer(l) && is_integer(r) {
+        let binop  = BinOp::new(BinOpKind::Sub, Box::new(l.clone()),  Box::new(r.clone()), token);
+        return Ok(Ast{value: AstKind::BinOp(binop), loc});
+    }
+
+    let ltype0 = get_type(&l);
+    let rtype0 = get_type(&r);
+
+    let (ltype1, rtype1) = match (ltype0, rtype0) {
+        (Some(l), Some(r)) => (l, r),
+        _ => return Err(Box::new(ParseError{err: format!("operand of add has no type {:?} {:?} ", l, r)})),
+    };
+
+    let (lhs, rhs) = match (&ltype1.base, &rtype1.base) {
+        (None, Some(_b)) => (r, l), //num + pointer swap
+        _=> (l, r)
+    };
+
+    //ltype2:pointer
+    //rtype2:num
+    let obj_size = node_number(8, &token)?;
+    let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size, &token);
+    let binop  = new_node(BinOpKind::Sub, lhs.clone(),  node_mul, token);
+    return Ok(binop);
+}
+
+fn node_number(n: i64, token :&Token) -> Result<Ast, Box<dyn Error>> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, base: None }};
     Ok(Ast{ value: astkind, loc})
 }
 
-fn node_variable(name: String, offset :i64, token: &Token) ->  Result<Ast, ParseError> {
+fn node_variable(name: String, offset :i64, token: &Token) ->  Result<Ast, Box<dyn Error>> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let astkind = AstKind::LocalVar{name, ntype: NodeType{kind: NodeTypeKind::UnFixed, base: None }, offset};
     Ok(Ast{ value: astkind, loc})
 }
 
-fn skip(tokenizer: &mut Tokenizer, token :TType) -> Result<(), ParseError> {
+fn skip(tokenizer: &mut Tokenizer, token :TType) -> Result<(), Box<dyn Error>> {
     let token_next = tokenizer.get();
     if token_next.ttype != token {
-        return Err(ParseError{err: format!("token {:?} must be {:?} ", token_next, token)});
+        return Err(Box::new(ParseError{err: format!("token {:?} must be {:?} ", token_next, token)}));
     }
     tokenizer.consume();
     Ok(())
