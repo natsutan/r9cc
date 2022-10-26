@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::Write;
 use std::path::Path;
 use std::fs::File;
@@ -107,6 +108,17 @@ impl UniOp {
     }
 }
 
+impl fmt::Display for NodeType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self.kind {
+            NodeTypeKind::Int => "int",
+            NodeTypeKind::Ptr => "prt",
+            NodeTypeKind::UnFixed => "",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 
 pub type Ast = Annot<AstKind>;
 pub type Program = Vec<Ast>;
@@ -144,41 +156,41 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             let left_cnt = write_node(&binop.l, file, cnt + 1)?;
             let right_cnt = write_node(&binop.r, file, left_cnt + 1)?;
             let op_str = match binop.op {
-                BinOpKind::Add  => "\"+\"",
-                BinOpKind::Sub  => "\"-\"",
-                BinOpKind::Mult => "\"*\"",
-                BinOpKind::Div  => "\"/\"",
-                BinOpKind::Eq   => "\"==\"",
-                BinOpKind::Ne   => "\"!=\"",
-                BinOpKind::Lt   => "\"<\"",
-                BinOpKind::Le   => "\"<=\"",
-                BinOpKind::Assign => "\"=\"",
+                BinOpKind::Add  => "+",
+                BinOpKind::Sub  => "-",
+                BinOpKind::Mult => "*",
+                BinOpKind::Div  => "/",
+                BinOpKind::Eq   => "==",
+                BinOpKind::Ne   => "!=",
+                BinOpKind::Lt   => "<",
+                BinOpKind::Le   => "<=",
+                BinOpKind::Assign => "=",
             };
 
             let left_node_name = node_name(cnt+1);
             let right_node_name = node_name(left_cnt + 1);
 
-            writeln!(file, "{}", format!("{}[label={}]", self_node_name, op_str))?;
+            writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, op_str, binop.ntype))?;
             writeln!(file, "{}", format!("{} -> {}", self_node_name, left_node_name))?;
             writeln!(file, "{}", format!("{} -> {}", self_node_name, right_node_name))?;
 
             return Ok(right_cnt)
         },
-        AstKind::LocalVar{name, ntype: _, offset} => {
-            writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, name, offset))?;
+        AstKind::LocalVar{name, ntype, offset} => {
+            writeln!(file, "{}", format!("{}[label=\"{}\n{}({})\"]", self_node_name, name, ntype, offset))?;
             return Ok(cnt)
         }
         AstKind::UniOp(uniop)=> {
             let left_cnt = write_node(&uniop.l, file, cnt + 1)?;
             let left_node_name = node_name(cnt + 1);
             let op_str = match uniop.op {
-                UniOpKind::NdExprStmt => "\"EXPR_STMT\"",
-                UniOpKind::NdReturn => "\"RETURN\"",
-                UniOpKind::Addr => "\"&\"",
-                UniOpKind::Deref => "\"*p\"",
+                UniOpKind::NdExprStmt => "EXPR_STMT",
+                UniOpKind::NdReturn => "RETURN",
+                UniOpKind::Addr => "&",
+                UniOpKind::Deref => "*p",
             };
 
-            writeln!(file, "{}", format!("{}[label={}]", self_node_name, op_str))?;
+            writeln!(file, "{}", format!("{}[label=\"{}\n{}\"]", self_node_name, op_str, uniop.ntype))?;
             writeln!(file, "{}", format!("{} -> {}", self_node_name, left_node_name))?;
             return Ok(left_cnt)
         }

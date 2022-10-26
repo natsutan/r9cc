@@ -17,10 +17,20 @@ impl fmt::Display for TypeError {
 
 
 pub fn is_integer(node :&Ast) -> bool {
+
     match &node.value {
         AstKind::Num{n:_, ntype} => {
             ntype.kind == NodeTypeKind::Int
         },
+        AstKind::LocalVar {name: _, ntype, offset: _ }=> {
+            ntype.kind == NodeTypeKind::Int
+        },
+        AstKind::BinOp(binop) => {
+            binop.ntype.kind == NodeTypeKind::Int
+        }
+        AstKind::UniOp(uniop) => {
+            uniop.ntype.kind == NodeTypeKind::Int
+        }
         _ => false
     }
 }

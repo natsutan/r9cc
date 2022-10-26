@@ -515,7 +515,7 @@ fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
     let (ltype1, rtype1) = match (ltype0, rtype0) {
         (Some(l), Some(r)) => (l, r),
-        _ => return Err(Box::new(ParseError{err: format!("operand of add has no type {:?} {:?} ", l, r)})),
+        _ => return Err(Box::new(ParseError{err: format!("operand of sub has no type {:?} {:?} ", l, r)})),
     };
 
     let (lhs, rhs) = match (&ltype1.base, &rtype1.base) {
@@ -539,7 +539,7 @@ fn node_number(n: i64, token :&Token) -> Result<Ast, Box<dyn Error>> {
 
 fn node_variable(name: String, offset :i64, token: &Token) ->  Result<Ast, Box<dyn Error>> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let astkind = AstKind::LocalVar{name, ntype: NodeType{kind: NodeTypeKind::UnFixed, base: None }, offset};
+    let astkind = AstKind::LocalVar{name, ntype: NodeType{kind: NodeTypeKind::Int, base: None }, offset};
     Ok(Ast{ value: astkind, loc})
 }
 
