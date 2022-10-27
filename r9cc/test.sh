@@ -17,7 +17,7 @@ assert() {
 }
 
 
-#assert 3 '{ x=3; return *&x; }'
+assert 3 '{ x=3; return *&x; }'
 #assert 3 '{ x=3; y=&x; z=&y; return **z; }'
 #assert 5 '{ x=3; y=5; return *(&x-1); }'
 #assert 3 '{ x=3; y=5; return *(&y+1); }'

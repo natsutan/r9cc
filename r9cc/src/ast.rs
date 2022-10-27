@@ -112,7 +112,7 @@ impl fmt::Display for NodeType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self.kind {
             NodeTypeKind::Int => "int",
-            NodeTypeKind::Ptr => "prt",
+            NodeTypeKind::Ptr => "ptr",
             NodeTypeKind::UnFixed => "",
         };
         write!(f, "{}", s)

@@ -43,16 +43,8 @@ fn add_type_for_body(body : &mut Vec<Box<Ast>>) -> Result<Option<NodeType>, Box<
 }
 
 fn new_pointer(dst :&NodeType) -> Result<NodeType, Box<dyn Error>> {
-    let dst_c = dst.clone();
-
-    let base_type = match dst_c.base {
-        Some(b) => b,
-        None => {
-            return Err(Box::new(TypeError{err: format!("Pointer has no type {:?}", dst_c)}));
-        }
-    };
-
-    Ok(NodeType{kind: NodeTypeKind::Ptr, base: Some(base_type)})
+    let dst_c = Box::new(dst.clone());
+    Ok(NodeType{kind: NodeTypeKind::Ptr, base: Some(dst_c)})
 }
 
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
