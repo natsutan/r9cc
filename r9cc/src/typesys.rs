@@ -17,7 +17,6 @@ impl fmt::Display for TypeError {
 
 
 pub fn is_integer(node :&Ast) -> bool {
-
     match &node.value {
         AstKind::Num{n:_, ntype} => {
             ntype.kind == NodeTypeKind::Int
@@ -30,6 +29,21 @@ pub fn is_integer(node :&Ast) -> bool {
         }
         AstKind::UniOp(uniop) => {
             uniop.ntype.kind == NodeTypeKind::Int
+        }
+        _ => false
+    }
+}
+
+pub fn is_pointer(node :&Ast) -> bool {
+    match &node.value {
+        AstKind::LocalVar {name: _, ntype, offset: _ }=> {
+            ntype.kind == NodeTypeKind::Ptr
+        },
+        AstKind::BinOp(binop) => {
+            binop.ntype.kind == NodeTypeKind::Ptr
+        }
+        AstKind::UniOp(uniop) => {
+            uniop.ntype.kind == NodeTypeKind::Ptr
         }
         _ => false
     }

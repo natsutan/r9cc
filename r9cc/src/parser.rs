@@ -3,8 +3,7 @@ use crate::ast::*;
 use std::error::Error;
 use std::fmt;
 use crate::ast;
-use crate::tokenizer::TType::{Comma, LParen, RParen};
-use crate::typesys::{add_type, is_integer};
+use crate::typesys::{add_type, is_integer, is_pointer};
 
 
 #[derive(Debug)]
@@ -79,9 +78,9 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
         TType::If => {
             tokenizer.consume();
 
-            skip(tokenizer, LParen)?;
+            skip(tokenizer, TType::LParen)?;
             let cond = expr(tokenizer, frame)?;
-            skip(tokenizer, RParen)?;
+            skip(tokenizer, TType::RParen)?;
             let then = stmt(tokenizer, frame)?;
             let token_else = tokenizer.get();
             if token_else.ttype == TType::Else {
@@ -94,30 +93,30 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
         },
         TType::For => {
             tokenizer.consume();
-            skip(tokenizer, LParen)?;
+            skip(tokenizer, TType::LParen)?;
             let init = expr_stmt(tokenizer, frame)?;
             //skip(tokenizer, Comma)?;
             let tc = tokenizer.get();
             let cond = match tc.ttype {
-                Comma => new_block(vec![], &token),
+                TType::Comma => new_block(vec![], &token),
                 _ => expr(tokenizer, frame)?
             };
-            skip(tokenizer, Comma)?;
+            skip(tokenizer, TType::Comma)?;
             let ti = tokenizer.get();
             let inc =  match ti.ttype {
-                RParen => new_block(vec![], &token),
+                TType::RParen => new_block(vec![], &token),
                 _ => expr(tokenizer, frame)?
             };
-            skip(tokenizer, RParen)?;
+            skip(tokenizer, TType::RParen)?;
             let then = stmt(tokenizer, frame)?;
 
             return Ok(new_for(init, cond, inc, then, &token));
         },
         TType::While => {
             tokenizer.consume();
-            skip(tokenizer, LParen)?;
+            skip(tokenizer, TType::LParen)?;
             let cond = expr(tokenizer, frame)?;
-            skip(tokenizer, RParen)?;
+            skip(tokenizer, TType::RParen)?;
             let then = stmt(tokenizer, frame)?;
 
             let init = new_block(vec![], &token);
@@ -425,6 +424,14 @@ fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
     Ast{value: AstKind::BinOp(binop), loc}
 }
 
+fn new_node_int(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    let mut binop  = BinOp::new(op, Box::new(l),  Box::new(r), token);
+    let ntype = NodeType{kind: NodeTypeKind::Int, base: None};
+    binop.set_node_type(ntype);
+    Ast{value: AstKind::BinOp(binop), loc}
+}
+
 fn new_unary(op :ast::UniOpKind, l: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let uniop = UniOp::new(op, Box::new(l), token);
@@ -463,6 +470,7 @@ fn get_type(node :&Ast) -> Option<NodeType> {
     match node.clone().value {
         AstKind::BinOp(binop) => Some(binop.ntype.clone()),
         AstKind::UniOp(uniop) => Some(uniop.ntype.clone()),
+        AstKind::Num {n : _, ntype} => Some(ntype.clone()),
         _ => None
     }
 }
@@ -480,6 +488,7 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
     let ltype0 = get_type(&l);
     let rtype0 = get_type(&r);
+
 
     let (ltype1, rtype1) = match (ltype0, rtype0) {
         (Some(l), Some(r)) => (l, r),
@@ -502,6 +511,7 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
 fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
+
     add_type(l)?;
     add_type(r)?;
 
@@ -523,9 +533,17 @@ fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
         _=> (l, r)
     };
 
+    let obj_size = node_number(8, &token)?;
+
+    // ptr - ptr, which returns how many elements are between the two.
+    if is_pointer(lhs) && is_pointer(rhs) {
+        let sub_op = new_node_int(BinOpKind::Sub, lhs.clone(), rhs.clone(), &token);
+        let binop = new_node_int(BinOpKind::Div, sub_op, obj_size, &token);
+        return Ok(binop);
+    }
+
     //ltype2:pointer
     //rtype2:num
-    let obj_size = node_number(8, &token)?;
     let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size, &token);
     let binop  = new_node(BinOpKind::Sub, lhs.clone(),  node_mul, token);
     return Ok(binop);
