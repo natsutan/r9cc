@@ -16,6 +16,7 @@ assert() {
   fi
 }
 
+assert 3 '{ for (;;) {return 3;} return 5; }'
 
 assert 3 '{int a; a=3; return a;}'
 assert 3 '{int a=3; return a;}'

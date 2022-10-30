@@ -98,10 +98,10 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
             //skip(tokenizer, Comma)?;
             let tc = tokenizer.get();
             let cond = match tc.ttype {
-                TType::Comma => new_block(vec![], &token),
+                TType::SemiColon => new_block(vec![], &token),
                 _ => expr(tokenizer, frame)?
             };
-            skip(tokenizer, TType::Comma)?;
+            skip(tokenizer, TType::SemiColon)?;
             let ti = tokenizer.get();
             let inc =  match ti.ttype {
                 TType::RParen => new_block(vec![], &token),
@@ -423,7 +423,7 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<d
 
 fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let base_type = declspec(tokenizer)?;
-    tokenizer.consume();
+    //tokenizer.consume();
     let mut token = tokenizer.get();
     let mut i:i64 = 0;
     let mut blcok: Vec<Box<Ast>> = vec![];
@@ -448,21 +448,24 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
 
         let token_eq = tokenizer.get();
         match token_eq.ttype {
-            TType::Identifier(s) => {
-                if s == "=" {
-                    tokenizer.consume();
+            TType::Operator(s) => {
+                if s != "=" {
+                    token = tokenizer.get();
                     continue;
                 }
             }
-            _ => {}
+            _ => {
+                token = tokenizer.get();
+                continue;
+            }
         }
+        tokenizer.consume();
 
         let rhs = assign(tokenizer, frame)?;
         let node_assign = new_node(BinOpKind::Assign, lhs, rhs, &tk);
         let node_expr_stmt = new_unary(UniOpKind::NdExprStmt, node_assign, &tk);
         blcok.push(Box::new(node_expr_stmt));
 
-        tokenizer.consume();
         token = tokenizer.get();
     }
     Ok(new_block(blcok, &token))
