@@ -129,27 +129,24 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                     Ok(Some(ntype))
                 },
                 UniOpKind::Deref => {
-                    let int_type = NodeType{kind: NodeTypeKind::Int, base: None};
-                    let dst_type = match ltype {
+                    let dst_type = match &ltype {
                         Some(t) => t,
                         None => {
-                            uniop.set_node_type(int_type.clone());
-                            return Ok(Some(int_type));
+                            return Err(Box::new(TypeError{err: format!("invalid pointer dereference {:?}", ltype)}));
                         }
                     };
-                    if dst_type.kind == NodeTypeKind::Ptr {
-                        let base_type = match dst_type.base {
+                    if dst_type.kind != NodeTypeKind::Ptr {
+                        return Err(Box::new(TypeError{err: format!("invalid pointer dereference {:?}", ltype)}));
+                    }
+                    let base_type = match &dst_type.base {
                             Some(b) => b,
                             None => {
-                                uniop.set_node_type(int_type.clone());
-                                return Ok(Some(int_type));
+                                return Err(Box::new(TypeError{err: format!("invalid pointer dereference {:?}", ltype)}));
                             }
                         };
-                        uniop.set_node_type(*base_type.clone());
-                        return Ok(Some(*base_type))
-                    }
-                    uniop.set_node_type(int_type.clone());
-                    return Ok(Some(int_type));
+                    uniop.set_node_type(*base_type.clone());
+                   let btype = *base_type.clone();
+                    return Ok(Some(btype));
                 },
                 _ => Ok(None)
             }

@@ -16,7 +16,9 @@ pub enum TType {
     For,
     While,
     Comma,
+    SemiColon,
     Return,
+    Int,
     EOF,
 }
 
@@ -98,7 +100,9 @@ impl Tokenizer {
                 ')' => self.tokens.push(Token::new(TType::RParen, self.src_line_num, idx)),
                 '{' => self.tokens.push(Token::new(TType::LBrace, self.src_line_num, idx)),
                 '}' => self.tokens.push(Token::new(TType::RBrace, self.src_line_num, idx)),
-                ';' => self.tokens.push(Token::new(TType::Comma, self.src_line_num, idx)),
+                ';' => self.tokens.push(Token::new(TType::SemiColon, self.src_line_num, idx)),
+                ',' => self.tokens.push(Token::new(TType::Comma, self.src_line_num, idx)),
+
                 '=' => {
                     if next_c == '=' {
                         self.tokens.push(Token::new(TType::Operator("==".to_string()), self.src_line_num, idx));
@@ -145,6 +149,7 @@ impl Tokenizer {
                                 "else" => self.tokens.push(Token::new(TType::Else, self.src_line_num, idx)),
                                 "for" => self.tokens.push(Token::new(TType::For, self.src_line_num, idx)),
                                 "while" => self.tokens.push(Token::new(TType::While, self.src_line_num, idx)),
+                                "int" => self.tokens.push(Token::new(TType::Int, self.src_line_num, idx)),
                                 _ =>  self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx)),
                             }
                         }

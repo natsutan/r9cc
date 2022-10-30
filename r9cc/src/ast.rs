@@ -81,6 +81,7 @@ pub enum AstKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalVariable {
     pub name: String,
+    pub ntype: NodeType,
     pub offset: i64,
 }
 
