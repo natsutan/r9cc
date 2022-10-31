@@ -237,6 +237,11 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             }
             Ok(())
         } ,
+        AstKind::FunCall{funcname} => {
+            writeln!(output, "  mov $0, %rax")?;
+            writeln!(output, "  call {}", funcname)?;
+            Ok(())
+        }
         _ => return  Err(Box::new(CodeGenError{err: format!("GEN: Invalid expression.")})),
     }
 }

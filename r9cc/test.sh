@@ -1,10 +1,16 @@
 #!/bin/bash
+
+cat <<EOF | gcc -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret5() { return 5; }
+EOF
+
 assert() {
   expected="$1"
   input="$2"
 
   cargo run --release "$input"  >& cargo.log
-  gcc -static -o tmp tmp.s
+  gcc -static -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
 
@@ -16,7 +22,8 @@ assert() {
   fi
 }
 
-assert 3 '{ for (;;) {return 3;} return 5; }'
+assert 3 '{ return ret3(); }'
+assert 5 '{ return ret5(); }'
 
 assert 3 '{int a; a=3; return a;}'
 assert 3 '{int a=3; return a;}'

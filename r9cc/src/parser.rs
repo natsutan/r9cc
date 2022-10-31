@@ -189,6 +189,16 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
             let tk = tokenizer.get();
             let name = s.clone();
 
+            //function call
+            let token_rpalan = tokenizer.get();
+            if token_rpalan.ttype == TType::LParen {
+                let node = new_funccall(name, &tk);
+                tokenizer.consume();
+                skip(tokenizer, TType::RParen)?;
+                return Ok(node);
+            }
+
+            //variable
             let search_result = find_lvar(&name, frame);
             match search_result {
                 Ok(lv) => {
@@ -575,6 +585,13 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     Ast{value: AstKind::For {init: init_box, cond: cond_box, inc: inc_box, then: then_box}, loc}
 }
+
+
+fn new_funccall(funcname: String, token: &Token) -> Ast {
+    let loc = Loc{ 0: token.line_num, 1:token.pos };
+    Ast{value: AstKind::FunCall { funcname }, loc}
+}
+
 
 fn get_type(node :&Ast) -> Option<NodeType> {
     match node.clone().value {
