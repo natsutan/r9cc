@@ -98,35 +98,48 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
 }
 
 
-pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
+pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
     let mut dc = GenCnt {depth:0, label: 1};
+
+    assign_lver_offset(program);
+
     let stack_size = frame.len() * 8;
 
-    //writeln!(output, ".intel_syntax noprefix")?;
-    writeln!(output, ".globl main")?;
-    writeln!(output, "main:")?;
+    for function in program {
+        writeln!(output, ".globl {}", function.name)?;
+        writeln!(output, "{}:", function.name)?;
+        // Prologue
+        writeln!(output, "  push %rbp")?;       //ベースポインタを保存
+        writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
+        writeln!(output, "  sub ${}, %rsp", function.stack_size)?;  //変数の領域確保
+        writeln!(output, "")?;
+        //引数の処理
+        gen_stmt(&function.body, output, &mut dc)?;
+        assert_eq!(dc.depth, 0);
+        writeln!(output, ".L.return:")?;
+        writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
+        writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
+        writeln!(output, "  ret")?;
 
-    // Prologue
-    writeln!(output, "  push %rbp")?;       //ベースポインタを保存
-    writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
-    writeln!(output, "  sub ${}, %rsp", stack_size)?;  //変数の領域確保
-    writeln!(output, "")?;
+    }
 
-    // match &program[0].value {
-    //     AstKind::Block{body} => {
-    //       for node in body.iter() {
-    //           gen_stmt(node, output, &mut dc)?;
-    //       }
-    //     },
-    //     _ => return Err(Box::new(CodeGenError{err: format!("Program must be block")})),
-    // }
-    assert_eq!(dc.depth, 0);
-
-    writeln!(output, ".L.return:")?;
-    writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
-    writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
-    writeln!(output, "  ret")?;
     Ok(())
+}
+
+fn assign_lver_offset(program :&mut Program) {
+    for f in program {
+        let mut offset = 0;
+        for v in &mut f.locals {
+            offset += 8;
+            v.offset = -offset;
+        }
+        f.stack_size = aligin_to(offset, 16);
+    }
+}
+
+fn aligin_to(n: i64, align :i64) -> u64 {
+    let x:f64 = (n + align - 1) as f64 / align as f64;
+    x.ceil() as u64 * align as u64
 }
 
 fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {

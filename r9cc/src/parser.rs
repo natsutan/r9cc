@@ -485,15 +485,23 @@ fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Bo
     let return_type = declarator(tokenizer, &ntype)?;
 
     let func_name = get_ident(tokenizer)?;
-    let mut params = create_param_lvars(tokenizer)?;
 
     let mut locals:Frame = vec![];
 
+    skip(tokenizer, TType::LParen)?;
+    let mut params = create_param_lvars(tokenizer)?;
+    skip(tokenizer, TType::RParen)?;
+    skip(tokenizer, TType::LBrace)?;
 
-    println!("func name = {}", func_name);
-    println!("params = {}", params);
+    let body = compound_stmt(tokenizer, &mut locals)?;
+    let stack_size = (locals.len() * 8) as u64 ;
 
-    Ok(Function{name: func_name , params, locals, stack_size: 0, body: vec![], return_type})
+    // println!("func name = {}", func_name);
+    // println!("params = {:?}", params);
+    // println!("return type = {:?}", ntype);
+    // println!("stack size  = {}", stack_size);
+
+    Ok(Function{name: func_name , params, locals, stack_size, body, return_type})
 }
 
 fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>> {

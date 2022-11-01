@@ -91,7 +91,7 @@ pub struct Function {
     pub params: Vec<LocalVariable>,
     pub locals: Vec<LocalVariable>,
     pub stack_size: u64,
-    pub body: Vec<Box<Ast>>,
+    pub body: Ast,
     pub return_type: NodeType,
 }
 
@@ -152,10 +152,7 @@ pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> 
 }
 
 fn write_function(func :&Function, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
-    let mut next_cnt = cnt;
-    for n in &func.body {
-        next_cnt = write_node(n, file, next_cnt)?;
-    }
+    let next_cnt = write_node(&func.body, file, cnt)?;
 
     return Ok(next_cnt)
 
