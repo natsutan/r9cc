@@ -112,14 +112,14 @@ pub fn codegen(program :&Program, frame :&Frame, output :&mut File) -> Result<()
     writeln!(output, "  sub ${}, %rsp", stack_size)?;  //変数の領域確保
     writeln!(output, "")?;
 
-    match &program[0].value {
-        AstKind::Block{body} => {
-          for node in body.iter() {
-              gen_stmt(node, output, &mut dc)?;
-          }
-        },
-        _ => return Err(Box::new(CodeGenError{err: format!("Program must be block")})),
-    }
+    // match &program[0].value {
+    //     AstKind::Block{body} => {
+    //       for node in body.iter() {
+    //           gen_stmt(node, output, &mut dc)?;
+    //       }
+    //     },
+    //     _ => return Err(Box::new(CodeGenError{err: format!("Program must be block")})),
+    // }
     assert_eq!(dc.depth, 0);
 
     writeln!(output, ".L.return:")?;
@@ -237,7 +237,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             }
             Ok(())
         } ,
-        AstKind::FunCall{funcname} => {
+        AstKind::FunCall{funcname, args:_} => {
             writeln!(output, "  mov $0, %rax")?;
             writeln!(output, "  call {}", funcname)?;
             Ok(())

@@ -76,7 +76,7 @@ pub enum AstKind {
     Block { body: Vec<Box<Ast>>},
     If_ {cond: Box<Ast>, then: Box<Ast>, els : Box<Ast>},
     For {init: Box<Ast>, cond: Box<Ast>, inc: Box<Ast>, then: Box<Ast>},
-    FunCall{funcname: String},
+    FunCall{funcname: String, args: Vec<Box<Ast>>},
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,6 +84,15 @@ pub struct LocalVariable {
     pub name: String,
     pub ntype: NodeType,
     pub offset: i64,
+}
+
+pub struct Function {
+    pub name: String,
+    pub params: Vec<LocalVariable>,
+    pub locals: Vec<LocalVariable>,
+    pub stack_size: u64,
+    pub body: Vec<Box<Ast>>,
+    pub return_type: NodeType,
 }
 
 impl BinOp {
@@ -123,7 +132,7 @@ impl fmt::Display for NodeType {
 
 
 pub type Ast = Annot<AstKind>;
-pub type Program = Vec<Ast>;
+pub type Program = Vec<Function>;
 pub type Frame = Vec<LocalVariable>;
 
 pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> {
@@ -133,13 +142,23 @@ pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> 
 
     let mut cnt = 0;
     for node in program.iter() {
-        cnt = write_node(&node, &mut file, cnt)?;
+        cnt = write_function(&node, &mut file, cnt)?;
         cnt += 1;
     }
 
 
     writeln!(file, "}}")?;
     Ok(())
+}
+
+fn write_function(func :&Function, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
+    let mut next_cnt = cnt;
+    for n in &func.body {
+        next_cnt = write_node(n, file, next_cnt)?;
+    }
+
+    return Ok(next_cnt)
+
 }
 
 pub fn node_name(cnt :u64) -> String {
@@ -244,7 +263,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
 
             return Ok(next_cnt)
         }
-        AstKind::FunCall {funcname} => {
+        AstKind::FunCall {funcname, args: _} => {
             writeln!(file, "{}", format!("{}[label=\"CALL\n{}\"]", self_node_name, funcname))?;
             return Ok(cnt)
         }

@@ -33,13 +33,12 @@ impl Parser {
     }
 
     pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), Box<dyn Error>> {
+
         let token = tokenizer.get();
-        if token.ttype != TType::LBrace {
-            return Err(Box::new(ParseError{err: format!("the first {{ is not found  {:?}", token)}))
+        while !tokenizer.at_eof() {
+            let func = function(tokenizer, &mut self.frame)?;
+            self.nodes.push(func);
         }
-        tokenizer.consume();
-        let node = compound_stmt(tokenizer, &mut self.frame)?;
-        self.nodes.push(node);
         Ok(())
     }
 
@@ -481,6 +480,29 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
     Ok(new_block(blcok, &token))
 }
 
+fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Box<dyn Error>> {
+    let ntype = declspec(tokenizer)?;
+    let return_type = declarator(tokenizer, &ntype)?;
+
+    let func_name = get_ident(tokenizer)?;
+    let mut params = create_param_lvars(tokenizer)?;
+
+    let mut locals:Frame = vec![];
+
+
+    println!("func name = {}", func_name);
+    println!("params = {}", params);
+
+    Ok(Function{name: func_name , params, locals, stack_size: 0, body: vec![], return_type})
+}
+
+fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>> {
+    let mut frame :Frame = vec![];
+
+    Ok(frame)
+}
+
+
 fn new_lvar(name: String, ntype: NodeType, frame: &mut Frame, token :&Token) -> Result<Ast, Box<dyn Error>> {
     let offset = -(frame.len() as i64 +  1) * 8;
     let new_lv = LocalVariable{name: name.clone(), ntype: ntype.clone(), offset};
@@ -589,7 +611,7 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 
 fn new_funccall(funcname: String, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    Ast{value: AstKind::FunCall { funcname }, loc}
+    Ast{value: AstKind::FunCall { funcname, args: vec![] }, loc}
 }
 
 
