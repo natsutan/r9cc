@@ -152,7 +152,12 @@ pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> 
 }
 
 fn write_function(func :&Function, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
-    let next_cnt = write_node(&func.body, file, cnt)?;
+    let self_node_name = node_name(cnt);
+    writeln!(file, "{}", format!("{}[label={}, shape=\"box\"]", self_node_name, func.name))?;
+    let body_node_name = node_name(cnt + 1);
+
+    writeln!(file, "{}", format!("{} -> {}", self_node_name, body_node_name))?;
+    let next_cnt = write_node(&func.body, file, cnt+1)?;
 
     return Ok(next_cnt)
 

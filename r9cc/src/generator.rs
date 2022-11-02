@@ -35,13 +35,13 @@ impl GenCnt {
 
 
 
-fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
+fn gen_stmt(node :&Ast, func_name: &String, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
         AstKind::UniOp(uniop) => {
             match uniop.op {
                 UniOpKind::NdReturn => {
                     gen_expr(&uniop.l, output, dc)?;
-                    writeln!(output, "  jmp .L.return")?;
+                    writeln!(output, "  jmp .L.return.{}", func_name)?;
                 }
                 UniOpKind::NdExprStmt => gen_expr(&uniop.l, output, dc)?,
                 _ => return Err(Box::new(CodeGenError{err: format!("invalid statement")})),
@@ -50,7 +50,7 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
         }
         AstKind::Block { body } => {
             for node in body.iter() {
-                gen_stmt(node, output, dc)?;
+                gen_stmt(node, func_name, output, dc)?;
             }
             Ok(())
         },
@@ -61,10 +61,10 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
             gen_expr(cond, output, dc)?;
             writeln!(output, "  cmp $0, %rax")?;
             writeln!(output, "  je  .L.else.{:?}", c)?;
-            gen_stmt(then, output, dc)?;
+            gen_stmt(then, func_name, output, dc)?;
             writeln!(output, "  jmp .L.end.{:?}", c)?;
             writeln!(output, ".L.else.{:?}:", c)?;
-            gen_stmt(els, output, dc)?;
+            gen_stmt(els, func_name, output, dc)?;
             writeln!(output, ".L.end.{:?}:", c)?;
             Ok(())
         },
@@ -73,7 +73,7 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
             dc.label_up();
 
             if !is_empty_block(init) {
-                gen_stmt(init, output, dc)?;
+                gen_stmt(init, func_name, output, dc)?;
             }
 
             writeln!(output, ".L.begin.{}:", c)?;
@@ -82,7 +82,7 @@ fn gen_stmt(node :&Ast, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dy
                 writeln!(output, "  cmp $0, %rax")?;
                 writeln!(output, "  je  .L.end.{}", c)?;
             }
-            gen_stmt(then, output, dc)?;
+            gen_stmt(then, func_name, output, dc)?;
 
             if !is_empty_block(inc) {
                 gen_expr(inc, output, dc)?;
@@ -103,8 +103,6 @@ pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Resul
 
     assign_lver_offset(program);
 
-    let stack_size = frame.len() * 8;
-
     for function in program {
         writeln!(output, ".globl {}", function.name)?;
         writeln!(output, "{}:", function.name)?;
@@ -114,12 +112,13 @@ pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Resul
         writeln!(output, "  sub ${}, %rsp", function.stack_size)?;  //変数の領域確保
         writeln!(output, "")?;
         //引数の処理
-        gen_stmt(&function.body, output, &mut dc)?;
+        gen_stmt(&function.body, &function.name, output, &mut dc)?;
         assert_eq!(dc.depth, 0);
-        writeln!(output, ".L.return:")?;
+        writeln!(output, ".L.return.{}:", function.name)?;
         writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
         writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
         writeln!(output, "  ret")?;
+        writeln!(output, "")?;
 
     }
 
@@ -139,7 +138,7 @@ fn assign_lver_offset(program :&mut Program) {
 
 fn aligin_to(n: i64, align :i64) -> u64 {
     let x:f64 = (n + align - 1) as f64 / align as f64;
-    x.ceil() as u64 * align as u64
+    x.floor() as u64 * align as u64
 }
 
 fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
