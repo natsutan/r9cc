@@ -486,12 +486,13 @@ fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Bo
 
     let func_name = get_ident(tokenizer)?;
 
-    let mut locals:Frame = vec![];
 
     skip(tokenizer, TType::LParen)?;
     let mut params = create_param_lvars(tokenizer)?;
     skip(tokenizer, TType::RParen)?;
     skip(tokenizer, TType::LBrace)?;
+
+    let mut locals = params.clone();
 
     let body = compound_stmt(tokenizer, &mut locals)?;
     let stack_size = (locals.len() * 8) as u64 ;
@@ -506,6 +507,30 @@ fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Bo
 
 fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>> {
     let mut frame :Frame = vec![];
+    let mut token = tokenizer.get();
+    let mut i:i64 = 0;
+
+    while token.ttype != TType::RParen {
+        let tk = tokenizer.get();
+        if i > 0 {
+            skip(tokenizer, TType::Comma)?;
+        }
+        i = i + 1;
+        let base_type = declspec(tokenizer)?;
+        let ntype = declarator(tokenizer, &base_type)?;
+        let var_name = get_ident(tokenizer)?;
+        let search_result = find_lvar(&var_name, &frame);
+        match search_result {
+            Ok(_) => {
+                return Err(Box::new(ParseError { err: format!("duplicate parameter {:?}  )", tk) }));
+            }
+            Err(()) => {}
+        }
+        let token_loc = tokenizer.get();
+        new_lvar(var_name, ntype, &mut frame, &token_loc)?;
+        token = tokenizer.get();
+    }
+
 
     Ok(frame)
 }
@@ -557,9 +582,7 @@ fn pointer_to(base_type: &NodeType) -> NodeType {
 }
 
 fn is_token_ast(token :&Token) -> bool {
-    match &
-
-        token.ttype {
+    match &token.ttype {
         TType::Operator(s) => {
             s == "*"
         },
@@ -723,7 +746,7 @@ fn node_variable(name: String, ntype:NodeType, offset :i64, token: &Token) ->  R
 fn skip(tokenizer: &mut Tokenizer, token :TType) -> Result<(), Box<dyn Error>> {
     let token_next = tokenizer.get();
     if token_next.ttype != token {
-        return Err(Box::new(ParseError{err: format!("token {:?} must be {:?} ", token_next, token)}));
+        return Err(Box::new(ParseError{err: format!("SKIP:token {:?} must be {:?} ", token_next, token)}));
     }
     tokenizer.consume();
     Ok(())

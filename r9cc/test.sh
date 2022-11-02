@@ -37,6 +37,7 @@ assert() {
 #assert 66 'int main() { return add6(1,2,add6(3,4,5,6,7,8),9,10,11); }'
 #assert 136 'int main() { return add6(1,2,add6(3,add6(4,5,6,7,8,9),10,11,12,13),14,15,16); }'
 
+assert 7 'int main() { return add2(3,4); } int add2(int x, int y) { return x+y; }'
 assert 32 'int main() { return ret32(); } int ret32() { return 32; }'
 assert 3 'int main() { return ret3(); }'
 assert 5 'int main() { return ret5(); }'
