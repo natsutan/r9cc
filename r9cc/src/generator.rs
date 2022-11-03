@@ -259,7 +259,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             }
             Ok(())
         } ,
-        AstKind::FunCall{funcname, args} => {
+        AstKind::FunCall{funcname, args, ntype:_} => {
             let mut nargs = 0;
             for arg in args.iter() {
                 gen_expr(arg, output, dc)?;

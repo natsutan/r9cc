@@ -30,6 +30,9 @@ pub fn is_integer(node :&Ast) -> bool {
         AstKind::UniOp(uniop) => {
             uniop.ntype.kind == NodeTypeKind::Int
         }
+        AstKind::FunCall {funcname:_, ntype, args:_} => {
+            ntype.kind == NodeTypeKind::Int
+        }
         _ => false
     }
 }
@@ -120,7 +123,7 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                     let dst_type = match ltype {
                         Some(t) => t,
                         None => {
-                            return Err(Box::new(TypeError{err: format!("Pointer has no type {:?}", ltype)}));
+                            return Err(Box::new(TypeError { err: format!("Pointer has no type {:?}", ltype) }));
                         }
                     };
 
@@ -132,24 +135,27 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                     let dst_type = match &ltype {
                         Some(t) => t,
                         None => {
-                            return Err(Box::new(TypeError{err: format!("invalid pointer dereference {:?}", ltype)}));
+                            return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
                         }
                     };
                     if dst_type.kind != NodeTypeKind::Ptr {
-                        return Err(Box::new(TypeError{err: format!("invalid pointer dereference {:?}", ltype)}));
+                        return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
                     }
                     let base_type = match &dst_type.base {
-                            Some(b) => b,
-                            None => {
-                                return Err(Box::new(TypeError{err: format!("invalid pointer dereference {:?}", ltype)}));
-                            }
-                        };
+                        Some(b) => b,
+                        None => {
+                            return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
+                        }
+                    };
                     uniop.set_node_type(*base_type.clone());
-                   let btype = *base_type.clone();
+                    let btype = *base_type.clone();
                     return Ok(Some(btype));
                 },
                 _ => Ok(None)
             }
+        },
+        AstKind::FunCall {funcname:_, ntype, args:_} => {
+            return Ok(Some(ntype.clone()));
         }
         _ => Ok(None)
     }

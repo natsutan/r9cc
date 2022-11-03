@@ -76,7 +76,7 @@ pub enum AstKind {
     Block { body: Vec<Box<Ast>>},
     If_ {cond: Box<Ast>, then: Box<Ast>, els : Box<Ast>},
     For {init: Box<Ast>, cond: Box<Ast>, inc: Box<Ast>, then: Box<Ast>},
-    FunCall{funcname: String, args: Vec<Box<Ast>>},
+    FunCall{funcname: String, args: Vec<Box<Ast>>, ntype: NodeType},
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -265,7 +265,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
 
             return Ok(next_cnt)
         }
-        AstKind::FunCall {funcname, args: _} => {
+        AstKind::FunCall {funcname, args: _, ntype: _} => {
             writeln!(file, "{}", format!("{}[label=\"CALL\n{}\"]", self_node_name, funcname))?;
             return Ok(cnt)
         }

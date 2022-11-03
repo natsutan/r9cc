@@ -236,7 +236,7 @@ fn funcall(tokenizer : &mut Tokenizer, funcname: String, frame: &mut Frame) -> R
     }
     skip(tokenizer, TType::RParen)?;
 
-    let node = new_funccall(funcname, args, &token);
+    let node = new_funccall(funcname, args,  &token);
     return Ok(node);
 }
 
@@ -516,6 +516,8 @@ fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Bo
     let body = compound_stmt(tokenizer, &mut locals)?;
     let stack_size = (locals.len() * 8) as u64 ;
 
+    println!("create function: {}", func_name);
+
     Ok(Function{name: func_name , params, locals, stack_size, body, return_type})
 }
 
@@ -654,9 +656,10 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 }
 
 
-fn new_funccall(funcname: String, args: Vec<Box<Ast>>,  token: &Token) -> Ast {
+fn new_funccall(funcname: String, args: Vec<Box<Ast>>, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    Ast{value: AstKind::FunCall { funcname, args }, loc}
+    let ntype = NodeType{kind:NodeTypeKind::Int, base: None};
+    Ast{value: AstKind::FunCall { funcname, ntype, args}, loc}
 }
 
 
@@ -665,12 +668,10 @@ fn get_type(node :&Ast) -> Option<NodeType> {
         AstKind::BinOp(binop) => Some(binop.ntype.clone()),
         AstKind::UniOp(uniop) => Some(uniop.ntype.clone()),
         AstKind::Num {n : _, ntype} => Some(ntype.clone()),
+        AstKind::FunCall {funcname:_, args: _, ntype} => Some(ntype.clone()),
         _ => None
     }
 }
-
-
-
 
 
 fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
