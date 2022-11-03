@@ -71,12 +71,12 @@ impl Tokenizer {
         let input_vec:Vec<char> = input_str.chars().collect();
 
         let mut s = String::new();
-        let last_index = input_str.len();
+        let last_index = input_vec.len();
 
         self.src_code.push(input_str.to_string());
         let mut skip = false;
 
-        for idx in 0..input_str.len() {
+        for idx in 0..input_vec.len() {
             let c = input_vec[idx];
             let next_c =  if idx == last_index - 1 {
                 '\n'
