@@ -111,7 +111,12 @@ pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Resul
         writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
         writeln!(output, "  sub ${}, %rsp", function.stack_size)?;  //変数の領域確保
         writeln!(output, "")?;
+
         //引数の処理
+        for (i, val) in function.locals.iter().enumerate() {
+            writeln!(output, "  mov {}, {}(%rbp)", argreg(i), val.offset)?;
+        }
+
         gen_stmt(&function.body, &function.name, output, &mut dc)?;
         assert_eq!(dc.depth, 0);
         writeln!(output, ".L.return.{}:", function.name)?;
@@ -123,6 +128,11 @@ pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Resul
     }
 
     Ok(())
+}
+
+fn argreg(i: usize) -> String {
+    let table = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"];
+    table[i].to_string()
 }
 
 fn assign_lver_offset(program :&mut Program) {
@@ -249,7 +259,19 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             }
             Ok(())
         } ,
-        AstKind::FunCall{funcname, args:_} => {
+        AstKind::FunCall{funcname, args} => {
+            let mut nargs = 0;
+            for arg in args.iter() {
+                gen_expr(arg, output, dc)?;
+                push(output, dc)?;
+                nargs += 1;
+            }
+
+            while nargs > 0 {
+                nargs -= 1;
+                pop(&argreg(nargs), output, dc)?;
+            }
+
             writeln!(output, "  mov $0, %rax")?;
             writeln!(output, "  call {}", funcname)?;
             Ok(())
