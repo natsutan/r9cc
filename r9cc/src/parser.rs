@@ -191,10 +191,8 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
             //function call
             let token_rpalan = tokenizer.get();
             if token_rpalan.ttype == TType::LParen {
-                let node = new_funccall(name, &tk);
                 tokenizer.consume();
-                skip(tokenizer, TType::RParen)?;
-                return Ok(node);
+                return funcall(tokenizer, name, frame);
             }
 
             //variable
@@ -219,6 +217,27 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
         }
         _ => Err(Box::new(ParseError{err: format!("token {:?} must be number", token)})),
     }
+}
+
+fn funcall(tokenizer : &mut Tokenizer, funcname: String, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+
+    let mut args :Vec<Box<Ast>> = vec![];
+    let mut token = tokenizer.get();
+
+    let mut first = true;
+    while token.ttype != TType::RParen {
+        if !first {
+            skip(tokenizer, TType::Comma)?;
+        }
+        first = false;
+        let node = assign(tokenizer, frame)?;
+        args.push(Box::new(node));
+        token = tokenizer.get();
+    }
+    skip(tokenizer, TType::RParen)?;
+
+    let node = new_funccall(funcname, args, &token);
+    return Ok(node);
 }
 
 fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
@@ -497,11 +516,6 @@ fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Bo
     let body = compound_stmt(tokenizer, &mut locals)?;
     let stack_size = (locals.len() * 8) as u64 ;
 
-    // println!("func name = {}", func_name);
-    // println!("params = {:?}", params);
-    // println!("return type = {:?}", ntype);
-    // println!("stack size  = {}", stack_size);
-
     Ok(Function{name: func_name , params, locals, stack_size, body, return_type})
 }
 
@@ -640,9 +654,9 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 }
 
 
-fn new_funccall(funcname: String, token: &Token) -> Ast {
+fn new_funccall(funcname: String, args: Vec<Box<Ast>>,  token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    Ast{value: AstKind::FunCall { funcname, args: vec![] }, loc}
+    Ast{value: AstKind::FunCall { funcname, args }, loc}
 }
 
 
