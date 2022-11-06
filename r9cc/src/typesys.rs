@@ -61,7 +61,7 @@ fn add_type_for_body(body : &mut Vec<Box<Ast>>) -> Result<Option<NodeType>, Box<
 
 fn new_pointer(dst :&NodeType) -> Result<NodeType, Box<dyn Error>> {
     let dst_c = Box::new(dst.clone());
-    Ok(NodeType{kind: NodeTypeKind::Ptr, base: Some(dst_c)})
+    Ok(NodeType{kind: NodeTypeKind::Ptr, size:1, base: Some(dst_c)})
 }
 
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
@@ -109,7 +109,7 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                     }
                 }
                 BinOpKind::Eq | BinOpKind::Ne | BinOpKind::Lt | BinOpKind::Le => {
-                    let ntype = NodeType{kind: NodeTypeKind::Int, base: None};
+                    let ntype = NodeType{kind: NodeTypeKind::Int, size:1, base: None};
                     binop.set_node_type(ntype.clone());
                     return Ok(Some(ntype));
                 }
@@ -138,18 +138,21 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                             return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
                         }
                     };
-                    if dst_type.kind != NodeTypeKind::Ptr {
-                        return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
-                    }
-                    let base_type = match &dst_type.base {
-                        Some(b) => b,
-                        None => {
-                            return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
+                    match dst_type.kind {
+                        NodeTypeKind::Ptr | NodeTypeKind::Array => {
+                            let base_type = match &dst_type.base {
+                                Some(b) => b,
+                                None => {
+                                    return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
+                                }
+                            };
+                            uniop.set_node_type(*base_type.clone());
+                            let btype = *base_type.clone();
+                            return Ok(Some(btype));
+
                         }
-                    };
-                    uniop.set_node_type(*base_type.clone());
-                    let btype = *base_type.clone();
-                    return Ok(Some(btype));
+                        _ => return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) })),
+                    }
                 },
                 _ => Ok(None)
             }

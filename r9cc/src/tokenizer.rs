@@ -10,6 +10,8 @@ pub enum TType {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     Identifier(String),
     If,
     Else,
@@ -100,6 +102,8 @@ impl Tokenizer {
                 ')' => self.tokens.push(Token::new(TType::RParen, self.src_line_num, idx)),
                 '{' => self.tokens.push(Token::new(TType::LBrace, self.src_line_num, idx)),
                 '}' => self.tokens.push(Token::new(TType::RBrace, self.src_line_num, idx)),
+                '[' => self.tokens.push(Token::new(TType::LBracket, self.src_line_num, idx)),
+                ']' => self.tokens.push(Token::new(TType::RBracket, self.src_line_num, idx)),
                 ';' => self.tokens.push(Token::new(TType::SemiColon, self.src_line_num, idx)),
                 ',' => self.tokens.push(Token::new(TType::Comma, self.src_line_num, idx)),
 
@@ -172,6 +176,17 @@ impl Tokenizer {
             t
         }
     }
+
+    pub fn peek(&mut self, i:usize) -> Token {
+        if self.token_pos+i >= self.tokens.len() {
+            Token::new(TType::EOF, self.src_line_num, 0)
+        } else {
+            let t = self.tokens[self.token_pos+i].clone();
+            //println!("[TOKEN peek]: {:?}", t);
+            t
+        }
+    }
+
 
     pub fn consume(&mut self) -> () {
         if self.token_pos != self.tokens.len() {

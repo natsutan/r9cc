@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::fs::File;
 use crate::tokenizer::Token;
-//use std::io::prelude::*;
+
 
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -58,12 +58,15 @@ pub enum UniOpKind {
 pub enum NodeTypeKind {
     Int,
     Ptr,
+    Func,
+    Array,
     UnFixed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NodeType {
     pub kind :NodeTypeKind,
+    pub size :usize,
     pub base :Option<Box<NodeType>>,
 }
 
@@ -98,7 +101,7 @@ pub struct Function {
 impl BinOp {
     pub fn new(op:BinOpKind, l: Box<Ast>, r: Box<Ast>, token: &Token) -> BinOp {
         let loc = Loc{ 0: token.line_num, 1:token.pos };
-        let ntype = NodeType{kind: NodeTypeKind::UnFixed, base: None};
+        let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:1, base: None};
         BinOp { op, ntype, l, r, loc }
     }
 
@@ -110,7 +113,7 @@ impl BinOp {
 impl UniOp {
     pub fn new(op:UniOpKind, l: Box<Ast>, token: &Token) -> UniOp {
         let loc = Loc{ 0: token.line_num, 1:token.pos };
-        let ntype = NodeType{kind: NodeTypeKind::UnFixed, base: None};
+        let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:1, base: None};
         UniOp { op, ntype, l, loc }
     }
 
@@ -124,6 +127,8 @@ impl fmt::Display for NodeType {
         let s = match self.kind {
             NodeTypeKind::Int => "int",
             NodeTypeKind::Ptr => "ptr",
+            NodeTypeKind::Array => "arr",
+            NodeTypeKind::Func => "fun",
             NodeTypeKind::UnFixed => "",
         };
         write!(f, "{}", s)

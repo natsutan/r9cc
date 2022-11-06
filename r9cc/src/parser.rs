@@ -3,6 +3,7 @@ use crate::ast::*;
 use std::error::Error;
 use std::fmt;
 use crate::ast;
+use crate::ast::NodeTypeKind::UnFixed;
 use crate::typesys::{add_type, is_integer, is_pointer};
 
 
@@ -462,8 +463,8 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
             skip(tokenizer, TType::Comma)?;
         }
         i = i+1;
-        let ntype = declarator(tokenizer, &base_type)?;
-        let var_name = get_ident(tokenizer)?;
+        let (var_name, ntype) = declarator(tokenizer, &base_type)?;
+//        let var_name = get_ident(tokenizer)?;
 
         let search_result = find_lvar(&var_name, frame);
         match search_result {
@@ -501,10 +502,7 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
 
 fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Box<dyn Error>> {
     let ntype = declspec(tokenizer)?;
-    let return_type = declarator(tokenizer, &ntype)?;
-
-    let func_name = get_ident(tokenizer)?;
-
+    let (func_name, return_type) = declarator(tokenizer, &ntype)?;
 
     skip(tokenizer, TType::LParen)?;
     let mut params = create_param_lvars(tokenizer)?;
@@ -533,8 +531,8 @@ fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>
         }
         i = i + 1;
         let base_type = declspec(tokenizer)?;
-        let ntype = declarator(tokenizer, &base_type)?;
-        let var_name = get_ident(tokenizer)?;
+        let (var_name, ntype) = declarator(tokenizer, &base_type)?;
+        //let  = get_ident(tokenizer)?;
         let search_result = find_lvar(&var_name, &frame);
         match search_result {
             Ok(_) => {
@@ -572,10 +570,10 @@ fn get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
 
 fn declspec(tokenizer : &mut Tokenizer) -> Result<NodeType, Box<dyn Error>> {
     skip(tokenizer, TType::Int)?;
-    Ok(NodeType{kind: NodeTypeKind::Int, base: None})
+    Ok(NodeType{kind: NodeTypeKind::Int, size: 1, base: None})
 }
 
-fn declarator(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType, Box<dyn Error>> {
+fn declarator(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<(String,NodeType), Box<dyn Error>> {
     let mut token = tokenizer.get();
     let mut node_type = ntype.clone();
 
@@ -586,15 +584,63 @@ fn declarator(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType, 
     }
 
     match token.ttype {
-        TType::Identifier(_) => {
-            Ok(node_type)
+        TType::Identifier(s) => {
+            tokenizer.consume();
+            let suffix = type_suffix(tokenizer, &node_type)?;
+            Ok((s, suffix))
         }
         _ => Err(Box::new(ParseError{err: format!("expected a variable name {:?}.", token)}))
     }
 }
 
+fn type_suffix(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType, Box<dyn Error>> {
+
+    let mut token = tokenizer.get();
+
+    if token.ttype == TType::LParen {
+        return Ok(ntype.clone());
+    }
+    // [ 配列のindex
+    if token.ttype == TType::LBracket {
+        tokenizer.consume();
+        token = tokenizer.get();
+        let sz = get_number(&token)?;
+        tokenizer.consume();
+        skip(tokenizer, TType::RBracket)?;
+        return Ok(NodeType{kind: NodeTypeKind::Array, size:sz as usize, base: Some(Box::new(ntype.clone()))})
+    }
+
+    // それ以外
+    Ok(ntype.clone())
+}
+
+fn func_params(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType, Box<dyn Error>> {
+    let mut token = tokenizer.get();
+    let mut first = true;
+
+    let mut type_list: Vec<NodeType> = vec![];
+
+    while token.ttype != TType::RParen {
+        let tk = tokenizer.get();
+        if !first {
+            skip(tokenizer, TType::Comma)?;
+            first = false;
+        }
+        let base_type = declspec(tokenizer)?;
+        let (_, ty) = declarator(tokenizer, &base_type)?;
+        type_list.push(ty);
+
+        token = tokenizer.get();
+    }
+
+
+    //TODO　ここから
+
+    Ok(ntype.clone())
+}
+
 fn pointer_to(base_type: &NodeType) -> NodeType {
-    NodeType{kind: NodeTypeKind::Ptr, base: Some(Box::new(base_type.clone()))}
+    NodeType{kind: NodeTypeKind::Ptr, size:1, base: Some(Box::new(base_type.clone()))}
 }
 
 fn is_token_ast(token :&Token) -> bool {
@@ -603,6 +649,13 @@ fn is_token_ast(token :&Token) -> bool {
             s == "*"
         },
         _ => false
+    }
+}
+
+fn get_number(token: &Token)-> Result<i64, Box<dyn Error>>  {
+    match token.ttype {
+        TType::Integer(n) => Ok(n),
+        _ =>  Err(Box::new(ParseError{err: format!("expected a number {:?}.", token)})),
     }
 }
 
@@ -616,7 +669,7 @@ fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
 fn new_node_int(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let mut binop  = BinOp::new(op, Box::new(l),  Box::new(r), token);
-    let ntype = NodeType{kind: NodeTypeKind::Int, base: None};
+    let ntype = NodeType{kind: NodeTypeKind::Int, size:1, base: None};
     binop.set_node_type(ntype);
     Ast{value: AstKind::BinOp(binop), loc}
 }
@@ -658,7 +711,7 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 
 fn new_funccall(funcname: String, args: Vec<Box<Ast>>, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let ntype = NodeType{kind:NodeTypeKind::Int, base: None};
+    let ntype = NodeType{kind:NodeTypeKind::Int, size:1, base: None};
     Ast{value: AstKind::FunCall { funcname, ntype, args}, loc}
 }
 
@@ -748,7 +801,7 @@ fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, Box<dyn Error>> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, base: None }};
+    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, size:1, base: None }};
     Ok(Ast{ value: astkind, loc})
 }
 
