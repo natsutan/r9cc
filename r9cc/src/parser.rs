@@ -570,7 +570,7 @@ fn get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
 
 fn declspec(tokenizer : &mut Tokenizer) -> Result<NodeType, Box<dyn Error>> {
     skip(tokenizer, TType::Int)?;
-    Ok(NodeType{kind: NodeTypeKind::Int, size: 8, base: None})
+    Ok(NodeType{kind: NodeTypeKind::Int, size: 8, len:0, base: None})
 }
 
 fn declarator(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<(String,NodeType), Box<dyn Error>> {
@@ -602,12 +602,30 @@ fn type_suffix(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
     }
     // [ 配列のindex
     if token.ttype == TType::LBracket {
-        tokenizer.consume();
-        token = tokenizer.get();
-        let sz = get_number(&token)? * ntype.size as i64;
-        tokenizer.consume();
-        skip(tokenizer, TType::RBracket)?;
-        return Ok(NodeType{kind: NodeTypeKind::Array, size:sz as usize, base: Some(Box::new(ntype.clone()))})
+        let mut token_md = tokenizer.get();
+        let mut dim_vec: Vec<NodeType> = vec![];
+        while token_md.ttype == TType::LBracket {
+            tokenizer.consume();
+            token = tokenizer.get();
+            let sz = get_number(&token)?;  //いったん個数を入れる
+            tokenizer.consume();
+            skip(tokenizer, TType::RBracket)?;
+            dim_vec.push(NodeType { kind: NodeTypeKind::Array, size: sz as usize, len: sz as usize, base: Some(Box::new(ntype.clone())) });
+            token_md = tokenizer.get();
+        }
+
+        //TODO Len確認
+        let mut pre_ntype = Box::new(ntype.clone());
+        let mut md_ntype = NodeType { kind: NodeTypeKind::Array, size: ntype.size, len: ntype.len, base: Some(Box::new(ntype.clone()))};
+        let mut md_size = ntype.size;
+        for n in dim_vec.iter().rev() {
+            md_size = md_size * n.size;
+            md_ntype = NodeType { kind: NodeTypeKind::Array, size: md_size, len: n.len ,base: Some(pre_ntype.clone())};
+
+            pre_ntype = Box::new(md_ntype.clone());
+        }
+        println!("md_ntype = {:?}", md_ntype);
+        return Ok(md_ntype);
     }
 
     // それ以外
@@ -640,7 +658,7 @@ fn func_params(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
 }
 
 fn pointer_to(base_type: &NodeType) -> NodeType {
-    NodeType{kind: NodeTypeKind::Ptr, size:8, base: Some(Box::new(base_type.clone()))}
+    NodeType{kind: NodeTypeKind::Ptr, size:8, len:0, base: Some(Box::new(base_type.clone()))}
 }
 
 fn is_token_ast(token :&Token) -> bool {
@@ -669,7 +687,7 @@ fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
 fn new_node_int(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let mut binop  = BinOp::new(op, Box::new(l),  Box::new(r), token);
-    let ntype = NodeType{kind: NodeTypeKind::Int, size:8, base: None};
+    let ntype = NodeType{kind: NodeTypeKind::Int, size:8, len:0, base: None};
     binop.set_node_type(ntype);
     Ast{value: AstKind::BinOp(binop), loc}
 }
@@ -711,7 +729,7 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 
 fn new_funccall(funcname: String, args: Vec<Box<Ast>>, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let ntype = NodeType{kind:NodeTypeKind::Int, size:1, base: None};
+    let ntype = NodeType{kind:NodeTypeKind::Int, size:1, len:0, base: None};
     Ast{value: AstKind::FunCall { funcname, ntype, args}, loc}
 }
 
@@ -756,8 +774,16 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
         AstKind::LocalVar {name: _, ntype, offset: _ } => {
             ntype.size
         },
+        AstKind::UniOp(uniop) => {
+            let node_l = &uniop.l;
+            match &node_l.value {
+                AstKind::LocalVar {name:_, ntype, offset:_} => ntype.size,
+                _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
+            }
+        }
         _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
     };
+
     let obj_size_node = node_number(obj_size as i64, &token)?;
     let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node, &token);
     let binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul, token);
@@ -813,7 +839,7 @@ fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, Box<dyn Error>> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, size:8, base: None }};
+    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, size:8, len:0, base: None }};
     Ok(Ast{ value: astkind, loc})
 }
 

@@ -172,12 +172,18 @@ fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
 }
 
 fn load(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+    println!("load {:?}", node);
     match &node.value {
         AstKind::LocalVar { name: _, ntype, offset: _ } => {
             if ntype.kind == NodeTypeKind::Array {
                 return Ok(())
             }
         }
+        AstKind::UniOp(uniop) => {
+            if uniop.ntype.kind == NodeTypeKind::Array {
+                return Ok(())
+            }
+        },
         _ => ()
     }
     writeln!(output, "  mov (%rax), %rax")?;
@@ -268,6 +274,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
                 UniOpKind::Deref => {
                     writeln!(output, "# deref")?;
                     gen_expr(&uniop.l, output, dc)?;
+                    writeln!(output, "# deref load")?;
                     load(&node, output, dc)?;
 
                 }
