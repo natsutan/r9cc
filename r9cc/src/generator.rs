@@ -114,6 +114,7 @@ pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Resul
 
         //引数の処理
         for (i, val) in function.locals.iter().enumerate() {
+            writeln!(output, "# val.offset {}", val.offset)?;
             writeln!(output, "  mov {}, {}(%rbp)", argreg(i), val.offset)?;
         }
 
@@ -139,7 +140,8 @@ fn assign_lver_offset(program :&mut Program) {
     for f in program {
         let mut offset = 0;
         for v in &mut f.locals {
-            offset += 8;
+            println!("v {} size = {}", v.name , v.ntype.size);
+            offset += v.ntype.size as i64;
             v.offset = -offset;
         }
         f.stack_size = aligin_to(offset, 16);
@@ -170,6 +172,26 @@ fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
     }
 }
 
+fn load(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+    match &node.value {
+        AstKind::LocalVar { name: _, ntype, offset: _ } => {
+            if ntype.kind == NodeTypeKind::Array {
+                return Ok(())
+            }
+        }
+        _ => ()
+    }
+    writeln!(output, "  mov (%rax), %rax")?;
+
+    Ok(())
+}
+
+fn store(output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>>  {
+    pop(&"%rdi".to_string(), output, dc)?;
+    writeln!(output, "  mov %rax, (%rdi)")?;
+    Ok(())
+}
+
 
 fn push(output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>>  {
     writeln!(output, "  push %rax")?;
@@ -194,7 +216,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
         },
         AstKind::LocalVar { name: _s, ntype: _, offset: _ } => {
             gen_addr(node, output, dc)?;
-            writeln!(output, "  mov (%rax), %rax")?;
+            load(node, output, dc)?;
             return Ok(());
         }
         AstKind::BinOp(binop) => {
@@ -202,8 +224,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
                 gen_addr(&binop.l, output, dc)?;
                 push(output, dc)?;
                 gen_expr(&binop.r, output, dc)?;
-                pop(&"%rdi".to_string(), output, dc)?;
-                writeln!(output, "  mov %rax, (%rdi)")?;
+                store(output, dc)?;
                 return Ok(())
             }
             gen_expr(&binop.r, output, dc)?;
@@ -248,7 +269,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
                 UniOpKind::Deref => {
                     writeln!(output, "# deref")?;
                     gen_expr(&uniop.l, output, dc)?;
-                    writeln!(output, "  mov (%rax), %rax")?;
+                    load(&node, output, dc)?;
 
                 }
                 UniOpKind::Addr => {

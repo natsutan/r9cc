@@ -570,7 +570,7 @@ fn get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
 
 fn declspec(tokenizer : &mut Tokenizer) -> Result<NodeType, Box<dyn Error>> {
     skip(tokenizer, TType::Int)?;
-    Ok(NodeType{kind: NodeTypeKind::Int, size: 1, base: None})
+    Ok(NodeType{kind: NodeTypeKind::Int, size: 8, base: None})
 }
 
 fn declarator(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<(String,NodeType), Box<dyn Error>> {
@@ -604,7 +604,7 @@ fn type_suffix(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
     if token.ttype == TType::LBracket {
         tokenizer.consume();
         token = tokenizer.get();
-        let sz = get_number(&token)?;
+        let sz = get_number(&token)? * ntype.size as i64;
         tokenizer.consume();
         skip(tokenizer, TType::RBracket)?;
         return Ok(NodeType{kind: NodeTypeKind::Array, size:sz as usize, base: Some(Box::new(ntype.clone()))})
@@ -640,7 +640,7 @@ fn func_params(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
 }
 
 fn pointer_to(base_type: &NodeType) -> NodeType {
-    NodeType{kind: NodeTypeKind::Ptr, size:1, base: Some(Box::new(base_type.clone()))}
+    NodeType{kind: NodeTypeKind::Ptr, size:8, base: Some(Box::new(base_type.clone()))}
 }
 
 fn is_token_ast(token :&Token) -> bool {
@@ -669,7 +669,7 @@ fn new_node(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
 fn new_node_int(op :ast::BinOpKind, l: Ast, r: Ast, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
     let mut binop  = BinOp::new(op, Box::new(l),  Box::new(r), token);
-    let ntype = NodeType{kind: NodeTypeKind::Int, size:1, base: None};
+    let ntype = NodeType{kind: NodeTypeKind::Int, size:8, base: None};
     binop.set_node_type(ntype);
     Ast{value: AstKind::BinOp(binop), loc}
 }
@@ -753,8 +753,15 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
     //ltype2:pointer
     //rtype2:num
-    let obj_size = node_number(8, &token)?;
-    let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size, &token);
+    //let obj_size = node_number(8, &token)?;
+    let obj_size = match &lhs.value {
+        AstKind::LocalVar {name: _, ntype, offset: _ } => {
+            ntype.size
+        },
+        _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
+    };
+    let obj_size_node = node_number(obj_size as i64, &token)?;
+    let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node, &token);
     let binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul, token);
     return Ok(binop);
 }
@@ -783,25 +790,32 @@ fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
         _=> (l, r)
     };
 
-    let obj_size = node_number(8, &token)?;
+    let obj_size = match &lhs.value {
+        AstKind::LocalVar {name: _, ntype, offset: _ } => {
+            ntype.size
+        },
+        _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
+    };
+    let obj_size_node = node_number(obj_size as i64, &token)?;
 
     // ptr - ptr, which returns how many elements are between the two.
     if is_pointer(lhs) && is_pointer(rhs) {
         let sub_op = new_node_int(BinOpKind::Sub, lhs.clone(), rhs.clone(), &token);
-        let binop = new_node_int(BinOpKind::Div, sub_op, obj_size, &token);
+        let binop = new_node_int(BinOpKind::Div, sub_op, obj_size_node, &token);
         return Ok(binop);
     }
 
     //ltype2:pointer
     //rtype2:num
-    let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size, &token);
+
+    let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node, &token);
     let binop  = new_node(BinOpKind::Sub, lhs.clone(),  node_mul, token);
     return Ok(binop);
 }
 
 fn node_number(n: i64, token :&Token) -> Result<Ast, Box<dyn Error>> {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, size:1, base: None }};
+    let astkind = AstKind::Num{n, ntype: NodeType{kind: NodeTypeKind::Int, size:8, base: None }};
     Ok(Ast{ value: astkind, loc})
 }
 

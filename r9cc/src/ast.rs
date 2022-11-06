@@ -205,7 +205,7 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
             return Ok(right_cnt)
         },
         AstKind::LocalVar{name, ntype, offset} => {
-            writeln!(file, "{}", format!("{}[label=\"{}\n{}({})\"]", self_node_name, name, ntype, offset))?;
+            writeln!(file, "{}", format!("{}[label=\"{}\n{}(size {})\"]", self_node_name, name, ntype, ntype.size))?;
             return Ok(cnt)
         }
         AstKind::UniOp(uniop)=> {
