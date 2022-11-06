@@ -722,6 +722,7 @@ fn get_type(node :&Ast) -> Option<NodeType> {
         AstKind::UniOp(uniop) => Some(uniop.ntype.clone()),
         AstKind::Num {n : _, ntype} => Some(ntype.clone()),
         AstKind::FunCall {funcname:_, args: _, ntype} => Some(ntype.clone()),
+        AstKind::LocalVar {name:_ , ntype, offset:_} => Some(ntype),
         _ => None
     }
 }
@@ -729,8 +730,6 @@ fn get_type(node :&Ast) -> Option<NodeType> {
 
 fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    add_type(l)?;
-    add_type(r)?;
 
     if is_integer(l) && is_integer(r) {
         let binop  = BinOp::new(BinOpKind::Add, Box::new(l.clone()),  Box::new(r.clone()), token);
@@ -739,7 +738,6 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
 
     let ltype0 = get_type(&l);
     let rtype0 = get_type(&r);
-
 
     let (ltype1, rtype1) = match (ltype0, rtype0) {
         (Some(l), Some(r)) => (l, r),

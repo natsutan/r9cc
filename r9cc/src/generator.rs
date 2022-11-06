@@ -140,7 +140,6 @@ fn assign_lver_offset(program :&mut Program) {
     for f in program {
         let mut offset = 0;
         for v in &mut f.locals {
-            println!("v {} size = {}", v.name , v.ntype.size);
             offset += v.ntype.size as i64;
             v.offset = -offset;
         }
