@@ -614,7 +614,6 @@ fn type_suffix(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
             token_md = tokenizer.get();
         }
 
-        //TODO Len確認
         let mut pre_ntype = Box::new(ntype.clone());
         let mut md_ntype = NodeType { kind: NodeTypeKind::Array, size: ntype.size, len: ntype.len, base: Some(Box::new(ntype.clone()))};
         let mut md_size = ntype.size;
@@ -729,7 +728,7 @@ fn new_for(init :Ast, cond :Ast, inc :Ast, then :Ast , token: &Token) -> Ast {
 
 fn new_funccall(funcname: String, args: Vec<Box<Ast>>, token: &Token) -> Ast {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
-    let ntype = NodeType{kind:NodeTypeKind::Int, size:1, len:0, base: None};
+    let ntype = NodeType{kind:NodeTypeKind::Int, size:8, len:0, base: None};
     Ast{value: AstKind::FunCall { funcname, ntype, args}, loc}
 }
 
@@ -748,6 +747,9 @@ fn get_type(node :&Ast) -> Option<NodeType> {
 
 fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
     let loc = Loc{ 0: token.line_num, 1:token.pos };
+
+    add_type(l)?;
+    add_type(r)?;
 
     if is_integer(l) && is_integer(r) {
         let binop  = BinOp::new(BinOpKind::Add, Box::new(l.clone()),  Box::new(r.clone()), token);
@@ -777,7 +779,7 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
         AstKind::UniOp(uniop) => {
             let node_l = &uniop.l;
             match &node_l.value {
-                AstKind::LocalVar {name:_, ntype, offset:_} => ntype.size,
+                AstKind::LocalVar {name:_, ntype, offset:_} => array_element_size(ntype)?,
                 _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
             }
         }
@@ -788,6 +790,19 @@ fn new_add(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
     let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node, &token);
     let binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul, token);
     return Ok(binop);
+}
+
+fn array_element_size(ntype: &NodeType) -> Result<usize, Box<dyn Error>> {
+    let mut esize = ntype.size;
+    let mut ntype_base = ntype.clone();
+    while true {
+        ntype_base =  match ntype_base.base {
+            Some(b) => *b,
+            None => return Ok(esize),
+        };
+        esize = ntype_base.size;
+    }
+    Ok(0)
 }
 
 fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error>>  {
@@ -818,6 +833,12 @@ fn new_sub(l: &mut Ast, r: &mut Ast, token: &Token) -> Result<Ast, Box<dyn Error
         AstKind::LocalVar {name: _, ntype, offset: _ } => {
             ntype.size
         },
+        AstKind::BinOp(binop) => {
+            binop.ntype.size
+        }
+        AstKind::UniOp(uniop) => {
+            uniop.ntype.size
+        }
         _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
     };
     let obj_size_node = node_number(obj_size as i64, &token)?;

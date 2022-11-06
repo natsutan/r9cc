@@ -102,7 +102,7 @@ pub struct Function {
 impl BinOp {
     pub fn new(op:BinOpKind, l: Box<Ast>, r: Box<Ast>, token: &Token) -> BinOp {
         let loc = Loc{ 0: token.line_num, 1:token.pos };
-        let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:1, len:0, base: None};
+        let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:0, len:0, base: None};
         BinOp { op, ntype, l, r, loc }
     }
 
@@ -114,7 +114,7 @@ impl BinOp {
 impl UniOp {
     pub fn new(op:UniOpKind, l: Box<Ast>, token: &Token) -> UniOp {
         let loc = Loc{ 0: token.line_num, 1:token.pos };
-        let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:1, len:0, base: None};
+        let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:0, len:0, base: None};
         UniOp { op, ntype, l, loc }
     }
 

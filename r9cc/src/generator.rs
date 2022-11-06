@@ -172,7 +172,6 @@ fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
 }
 
 fn load(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
-    println!("load {:?}", node);
     match &node.value {
         AstKind::LocalVar { name: _, ntype, offset: _ } => {
             if ntype.kind == NodeTypeKind::Array {
@@ -226,10 +225,12 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
         }
         AstKind::BinOp(binop) => {
             if binop.op == BinOpKind::Assign {
+                writeln!(output, "# assign")?;
                 gen_addr(&binop.l, output, dc)?;
                 push(output, dc)?;
                 gen_expr(&binop.r, output, dc)?;
                 store(output, dc)?;
+                writeln!(output, "")?;
                 return Ok(())
             }
             gen_expr(&binop.r, output, dc)?;

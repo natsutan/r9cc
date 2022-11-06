@@ -61,7 +61,7 @@ fn add_type_for_body(body : &mut Vec<Box<Ast>>) -> Result<Option<NodeType>, Box<
 
 fn new_pointer(dst :&NodeType) -> Result<NodeType, Box<dyn Error>> {
     let dst_c = Box::new(dst.clone());
-    Ok(NodeType{kind: NodeTypeKind::Ptr, size:1, len:0, base: Some(dst_c)})
+    Ok(NodeType{kind: NodeTypeKind::Ptr, size:8, len:0, base: Some(dst_c)})
 }
 
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
@@ -109,7 +109,7 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                     }
                 }
                 BinOpKind::Eq | BinOpKind::Ne | BinOpKind::Lt | BinOpKind::Le => {
-                    let ntype = NodeType{kind: NodeTypeKind::Int, size:1, len:0, base: None};
+                    let ntype = NodeType{kind: NodeTypeKind::Int, size:8, len:0, base: None};
                     binop.set_node_type(ntype.clone());
                     return Ok(Some(ntype));
                 }
