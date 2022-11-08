@@ -172,7 +172,7 @@ impl Tokenizer {
             Token::new(TType::EOF, self.src_line_num, 0)
         } else {
             let t = self.tokens[self.token_pos].clone();
-            println!("[TOKEN get]: {:?}", t);
+            //println!("[TOKEN get]: {:?}", t);
             t
         }
     }

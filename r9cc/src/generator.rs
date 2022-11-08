@@ -154,7 +154,7 @@ fn aligin_to(n: i64, align :i64) -> u64 {
 
 fn gen_addr(node: &Ast, locals: &Vec<LocalVariable> ,output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match &node.value {
-        AstKind::LocalVar { name: name, ntype: _, offset: _ } => {
+        AstKind::LocalVar { name, ntype: _, offset: _ } => {
             let mut offset = 0;
             for v in locals {
                 if v.name == *name {
@@ -162,7 +162,6 @@ fn gen_addr(node: &Ast, locals: &Vec<LocalVariable> ,output : &mut File, dc :&mu
                     break;
                 }
             }
-
             writeln!(output, "  lea {}(%rbp), %rax", offset)?;
             Ok(())
         }
