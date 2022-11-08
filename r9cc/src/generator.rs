@@ -36,7 +36,7 @@ impl GenCnt {
 
 
 fn gen_stmt(node :&Ast, func_name: &String, locals: &Vec<LocalVariable>, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
-    match &node.value {
+    match node {
         AstKind::UniOp(uniop) => {
             match uniop.op {
                 UniOpKind::NdReturn => {
@@ -98,7 +98,7 @@ fn gen_stmt(node :&Ast, func_name: &String, locals: &Vec<LocalVariable>, output 
 }
 
 
-pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
+pub fn codegen(program: &mut Program, _frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
     let mut dc = GenCnt {depth:0, label: 1};
 
     assign_lver_offset(program);
@@ -153,7 +153,7 @@ fn aligin_to(n: i64, align :i64) -> u64 {
 }
 
 fn gen_addr(node: &Ast, locals: &Vec<LocalVariable> ,output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
-    match &node.value {
+    match node {
         AstKind::LocalVar { name, ntype: _, offset: _ } => {
             let mut offset = 0;
             for v in locals {
@@ -171,15 +171,15 @@ fn gen_addr(node: &Ast, locals: &Vec<LocalVariable> ,output : &mut File, dc :&mu
                     gen_expr(&uniop.l, locals, output, dc)?;
                     Ok(())
                 },
-                _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
+                _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node)}))
             }
         }
-        _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
+        _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node)}))
     }
 }
 
-fn load(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
-    match &node.value {
+fn load(node: &Ast, output : &mut File, _dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+    match node {
         AstKind::LocalVar { name: _, ntype, offset: _ } => {
             if ntype.kind == NodeTypeKind::Array {
                 return Ok(())
@@ -220,7 +220,7 @@ fn pop(s: &String, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Er
 
 fn gen_expr(node :&Ast, locals: &Vec<LocalVariable>, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
 
-    match node.value.clone() {
+    match node.clone() {
         AstKind::Num{n, ntype:_}=> {
             writeln!(output, "  mov ${}, %rax", n)?;
             return Ok(());
@@ -318,7 +318,7 @@ fn gen_expr(node :&Ast, locals: &Vec<LocalVariable>, output : &mut File, dc :&mu
 }
 
 fn is_empty_block(node: &Ast) -> bool {
-    match node.value.clone() {
+    match node.clone() {
         AstKind::Block{body}=> {
             body.len() == 0
         },

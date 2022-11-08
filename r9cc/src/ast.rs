@@ -2,18 +2,10 @@ use std::fmt;
 use std::io::Write;
 use std::path::Path;
 use std::fs::File;
-use crate::tokenizer::Token;
-
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Loc(pub usize, pub usize);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Annot<T> {
-    pub value :T,
-    pub loc: Loc
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BinOpKind {
@@ -34,7 +26,6 @@ pub struct BinOp {
     pub ntype: NodeType,
     pub l: Box<Ast>,
     pub r: Box<Ast>,
-    pub loc: Loc
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,7 +33,6 @@ pub struct UniOp {
     pub op: UniOpKind,
     pub ntype: NodeType,
     pub l: Box<Ast>,
-    pub loc: Loc
 }
 
 
@@ -100,10 +90,9 @@ pub struct Function {
 }
 
 impl BinOp {
-    pub fn new(op:BinOpKind, l: Box<Ast>, r: Box<Ast>, token: &Token) -> BinOp {
-        let loc = Loc{ 0: token.line_num, 1:token.pos };
+    pub fn new(op:BinOpKind, l: Box<Ast>, r: Box<Ast>) -> BinOp {
         let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:0, len:0, base: None};
-        BinOp { op, ntype, l, r, loc }
+        BinOp { op, ntype, l, r }
     }
 
     pub fn set_node_type(&mut self, node_type :NodeType) {
@@ -112,10 +101,9 @@ impl BinOp {
 }
 
 impl UniOp {
-    pub fn new(op:UniOpKind, l: Box<Ast>, token: &Token) -> UniOp {
-        let loc = Loc{ 0: token.line_num, 1:token.pos };
+    pub fn new(op:UniOpKind, l: Box<Ast>) -> UniOp {
         let ntype = NodeType{kind: NodeTypeKind::UnFixed, size:0, len:0, base: None};
-        UniOp { op, ntype, l, loc }
+        UniOp { op, ntype, l }
     }
 
     pub fn set_node_type(&mut self, node_type :NodeType) {
@@ -137,7 +125,7 @@ impl fmt::Display for NodeType {
 }
 
 
-pub type Ast = Annot<AstKind>;
+pub type Ast = AstKind;
 pub type Program = Vec<Function>;
 pub type Frame = Vec<LocalVariable>;
 
@@ -176,7 +164,7 @@ pub fn node_name(cnt :u64) -> String {
 fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
     let self_node_name = node_name(cnt);
 
-    match &node.value {
+    match &node {
         AstKind::Num{n, ntype:_n} => {
             writeln!(file, "{}", format!("{}[label={}]", self_node_name, n))?;
             return Ok(cnt)

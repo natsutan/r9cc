@@ -17,7 +17,7 @@ impl fmt::Display for TypeError {
 
 
 pub fn is_integer(node :&Ast) -> bool {
-    match &node.value {
+    match &node {
         AstKind::Num{n:_, ntype} => {
             ntype.kind == NodeTypeKind::Int
         },
@@ -38,7 +38,7 @@ pub fn is_integer(node :&Ast) -> bool {
 }
 
 pub fn is_pointer(node :&Ast) -> bool {
-    match &node.value {
+    match &node {
         AstKind::LocalVar {name: _, ntype, offset: _ }=> {
             ntype.kind == NodeTypeKind::Ptr
         },
@@ -73,19 +73,18 @@ fn new_pointer_to(base_type :&NodeTypeKind) -> Result<NodeType, Box<dyn Error>> 
 fn array_element_type(ntype: &NodeType) -> Result<NodeTypeKind, Box<dyn Error>> {
     let mut etype = ntype.kind.clone();
     let mut ntype_base = ntype.clone();
-    while true {
+    loop {
         ntype_base =  match ntype_base.base {
             Some(b) => *b,
             None => return Ok(etype),
         };
         etype = ntype_base.kind;
     }
-    Ok(etype)
 }
 
 
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
-    match &mut node.value {
+    match node {
         AstKind::Num{n:_, ntype} => {
             Ok(Some(ntype.clone()))
         },
@@ -201,6 +200,5 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
         AstKind::FunCall {funcname:_, ntype, args:_} => {
             return Ok(Some(ntype.clone()));
         }
-        _ => Ok(None)
     }
 }
