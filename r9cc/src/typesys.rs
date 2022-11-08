@@ -64,6 +64,26 @@ fn new_pointer(dst :&NodeType) -> Result<NodeType, Box<dyn Error>> {
     Ok(NodeType{kind: NodeTypeKind::Ptr, size:8, len:0, base: Some(dst_c)})
 }
 
+fn new_pointer_to(base_type :&NodeTypeKind) -> Result<NodeType, Box<dyn Error>> {
+    let dst_c = NodeType{kind: base_type.clone(), size: 8, len: 0, base:None};
+    new_pointer(&dst_c)
+}
+
+
+fn array_element_type(ntype: &NodeType) -> Result<NodeTypeKind, Box<dyn Error>> {
+    let mut etype = ntype.kind.clone();
+    let mut ntype_base = ntype.clone();
+    while true {
+        ntype_base =  match ntype_base.base {
+            Some(b) => *b,
+            None => return Ok(etype),
+        };
+        etype = ntype_base.kind;
+    }
+    Ok(etype)
+}
+
+
 pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
     match &mut node.value {
         AstKind::Num{n:_, ntype} => {
@@ -97,7 +117,26 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
             add_type(&mut binop.r)?;
 
             match binop.op {
-                BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mult | BinOpKind::Div | BinOpKind::Assign => {
+                BinOpKind::Add | BinOpKind::Sub => {
+                    match ltype {
+                        Some(t) => {
+                            //arrary to pointer
+                            if t.kind == NodeTypeKind::Array {
+                                let base_element_type = array_element_type(&t)?;
+                                let pointer = new_pointer_to(&base_element_type)?;
+                                binop.set_node_type(pointer);
+                            } else {
+                                binop.set_node_type(t.clone());
+                            }
+
+                            return Ok(Some(t.clone()));
+                        }
+                        None => {
+                            return Err(Box::new(TypeError{err: format!("Binop node l has no type {:?}", binop)}));
+                        }
+                    }
+                }
+                BinOpKind::Mult | BinOpKind::Div | BinOpKind::Assign => {
                     match ltype {
                         Some(t) => {
                             binop.set_node_type(t.clone());
@@ -146,6 +185,8 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                                     return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
                                 }
                             };
+
+
                             uniop.set_node_type(*base_type.clone());
                             let btype = *base_type.clone();
                             return Ok(Some(btype));

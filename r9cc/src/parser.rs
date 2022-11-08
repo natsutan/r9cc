@@ -348,6 +348,7 @@ fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn E
                 "*" => {
                     tokenizer.consume();
                     let node_l = unary(tokenizer, frame)?;
+                    println!("node_l = {:?}", node_l);
                     let node = new_unary(UniOpKind::Deref,  node_l, &token_loc);
                     return Ok(node);
                 }

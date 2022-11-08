@@ -27,7 +27,9 @@ assert() {
   fi
 }
 
+assert 2 'int main() { int x[2][3]; int *y=x; *(y)=2; return *(*x); }'
 
+assert 2 'int main() { int x[2][3]; int *y=x; *(y+2)=2; return *(*x+2); }'
 
 assert 4 'int main() { int x[3]; *x=3; *(x+1)=4; *(x+2)=5; return *(x+1); }'
 assert 0 'int main() { int x[2][3]; int *y=x; *y=0; return **x; }'

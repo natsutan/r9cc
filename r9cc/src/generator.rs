@@ -35,22 +35,22 @@ impl GenCnt {
 
 
 
-fn gen_stmt(node :&Ast, func_name: &String, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
+fn gen_stmt(node :&Ast, func_name: &String, locals: &Vec<LocalVariable>, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
     match &node.value {
         AstKind::UniOp(uniop) => {
             match uniop.op {
                 UniOpKind::NdReturn => {
-                    gen_expr(&uniop.l, output, dc)?;
+                    gen_expr(&uniop.l, locals, output, dc)?;
                     writeln!(output, "  jmp .L.return.{}", func_name)?;
                 }
-                UniOpKind::NdExprStmt => gen_expr(&uniop.l, output, dc)?,
+                UniOpKind::NdExprStmt => gen_expr(&uniop.l, locals, output, dc)?,
                 _ => return Err(Box::new(CodeGenError{err: format!("invalid statement")})),
             }
             Ok(())
         }
         AstKind::Block { body } => {
             for node in body.iter() {
-                gen_stmt(node, func_name, output, dc)?;
+                gen_stmt(node, func_name, locals, output, dc)?;
             }
             Ok(())
         },
@@ -58,13 +58,13 @@ fn gen_stmt(node :&Ast, func_name: &String, output :&mut File, dc: &mut GenCnt) 
             let c = dc.label;
             dc.label_up();
 
-            gen_expr(cond, output, dc)?;
+            gen_expr(cond, locals, output, dc)?;
             writeln!(output, "  cmp $0, %rax")?;
             writeln!(output, "  je  .L.else.{:?}", c)?;
-            gen_stmt(then, func_name, output, dc)?;
+            gen_stmt(then, func_name, locals,output, dc)?;
             writeln!(output, "  jmp .L.end.{:?}", c)?;
             writeln!(output, ".L.else.{:?}:", c)?;
-            gen_stmt(els, func_name, output, dc)?;
+            gen_stmt(els, func_name, locals, output, dc)?;
             writeln!(output, ".L.end.{:?}:", c)?;
             Ok(())
         },
@@ -73,19 +73,19 @@ fn gen_stmt(node :&Ast, func_name: &String, output :&mut File, dc: &mut GenCnt) 
             dc.label_up();
 
             if !is_empty_block(init) {
-                gen_stmt(init, func_name, output, dc)?;
+                gen_stmt(init, func_name, locals, output, dc)?;
             }
 
             writeln!(output, ".L.begin.{}:", c)?;
             if !is_empty_block(cond) {
-                gen_expr(cond, output, dc)?;
+                gen_expr(cond, locals, output, dc)?;
                 writeln!(output, "  cmp $0, %rax")?;
                 writeln!(output, "  je  .L.end.{}", c)?;
             }
-            gen_stmt(then, func_name, output, dc)?;
+            gen_stmt(then, func_name, locals, output, dc)?;
 
             if !is_empty_block(inc) {
-                gen_expr(inc, output, dc)?;
+                gen_expr(inc, locals, output, dc)?;
             }
             writeln!(output, "  jmp .L.begin.{}", c)?;
             writeln!(output, ".L.end.{}:", c)?;
@@ -118,7 +118,7 @@ pub fn codegen(program: &mut Program, frame :&Frame, output :&mut File) -> Resul
             writeln!(output, "  mov {}, {}(%rbp)", argreg(i), val.offset)?;
         }
 
-        gen_stmt(&function.body, &function.name, output, &mut dc)?;
+        gen_stmt(&function.body, &function.name, &function.locals, output, &mut dc)?;
         assert_eq!(dc.depth, 0);
         writeln!(output, ".L.return.{}:", function.name)?;
         writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
@@ -152,16 +152,24 @@ fn aligin_to(n: i64, align :i64) -> u64 {
     x.floor() as u64 * align as u64
 }
 
-fn gen_addr(node: &Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+fn gen_addr(node: &Ast, locals: &Vec<LocalVariable> ,output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match &node.value {
-        AstKind::LocalVar { name: _, ntype: _, offset } => {
+        AstKind::LocalVar { name: name, ntype: _, offset: _ } => {
+            let mut offset = 0;
+            for v in locals {
+                if v.name == *name {
+                    offset = v.offset;
+                    break;
+                }
+            }
+
             writeln!(output, "  lea {}(%rbp), %rax", offset)?;
             Ok(())
         }
         AstKind::UniOp(uniop)=> {
             match uniop.op {
                 UniOpKind::Deref => {
-                    gen_expr(&uniop.l, output, dc)?;
+                    gen_expr(&uniop.l, locals, output, dc)?;
                     Ok(())
                 },
                 _ => Err(Box::new(CodeGenError{err: format!("GEN: not an lvalue {:?}.", node.value)}))
@@ -211,7 +219,7 @@ fn pop(s: &String, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Er
 
 
 
-fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+fn gen_expr(node :&Ast, locals: &Vec<LocalVariable>, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
 
     match node.value.clone() {
         AstKind::Num{n, ntype:_}=> {
@@ -219,24 +227,26 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             return Ok(());
         },
         AstKind::LocalVar { name: _s, ntype: _, offset: _ } => {
-            gen_addr(node, output, dc)?;
+            gen_addr(node, locals, output, dc)?;
             load(node, output, dc)?;
             return Ok(());
         }
         AstKind::BinOp(binop) => {
             if binop.op == BinOpKind::Assign {
                 writeln!(output, "# assign")?;
-                gen_addr(&binop.l, output, dc)?;
+                gen_addr(&binop.l, locals, output, dc)?;
                 push(output, dc)?;
-                gen_expr(&binop.r, output, dc)?;
+                gen_expr(&binop.r, locals, output, dc)?;
                 store(output, dc)?;
                 writeln!(output, "")?;
                 return Ok(())
             }
-            gen_expr(&binop.r, output, dc)?;
+            gen_expr(&binop.r, locals, output, dc)?;
             push(output, dc)?;
-            gen_expr(&binop.l, output, dc)?;
+            gen_expr(&binop.l, locals, output, dc)?;
             pop(&"%rdi".to_string(), output, dc)?;
+
+            writeln!(output, "# op {:?}", binop.op)?;
 
             match binop.op {
                 BinOpKind::Add => writeln!(output, "  add %rdi, %rax")?,
@@ -274,14 +284,14 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
             match uniop.op {
                 UniOpKind::Deref => {
                     writeln!(output, "# deref")?;
-                    gen_expr(&uniop.l, output, dc)?;
+                    gen_expr(&uniop.l, locals, output, dc)?;
                     writeln!(output, "# deref load")?;
                     load(&node, output, dc)?;
 
                 }
                 UniOpKind::Addr => {
                     writeln!(output, "# addr")?;
-                    gen_addr(&uniop.l, output, dc)?;
+                    gen_addr(&uniop.l, locals, output, dc)?;
                 }
                 _ => return  Err(Box::new(CodeGenError{err: format!("GEN: Invalid expression.")})),
             }
@@ -290,7 +300,7 @@ fn gen_expr(node :&Ast, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<d
         AstKind::FunCall{funcname, args, ntype:_} => {
             let mut nargs = 0;
             for arg in args.iter() {
-                gen_expr(arg, output, dc)?;
+                gen_expr(arg, locals, output, dc)?;
                 push(output, dc)?;
                 nargs += 1;
             }
