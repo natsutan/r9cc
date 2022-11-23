@@ -184,7 +184,6 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                                     return Err(Box::new(TypeError { err: format!("invalid pointer dereference a {:?}", ltype) }));
                                 }
                             };
-
                             uniop.set_node_type(*base_type.clone());
                             let btype = *base_type.clone();
                             return Ok(Some(btype));
