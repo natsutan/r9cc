@@ -3,6 +3,7 @@ use crate::ast::*;
 use std::error::Error;
 use std::fmt;
 use crate::ast;
+use crate::ast::UniOpKind::Deref;
 use crate::typesys::{add_type, is_integer, is_pointer};
 
 
@@ -674,6 +675,12 @@ fn new_node_int(op :ast::BinOpKind, l: Ast, r: Ast) -> Ast {
     AstKind::BinOp(binop)
 }
 
+fn new_node_ntype(op :ast::BinOpKind, l: Ast, r: Ast, ntype:NodeType) -> Ast {
+    let mut binop  = BinOp::new(op, Box::new(l),  Box::new(r));
+    binop.set_node_type(ntype);
+    AstKind::BinOp(binop)
+}
+
 fn new_unary(op :ast::UniOpKind, l: Ast) -> Ast {
     let uniop = UniOp::new(op, Box::new(l));
     AstKind::UniOp(uniop)
@@ -728,6 +735,9 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
     add_type(l)?;
     add_type(r)?;
 
+    println!("new_add l {:?}", l);
+    println!("new_add r {:?}", r);
+
     if is_integer(l) && is_integer(r) {
         let binop  = BinOp::new(BinOpKind::Add, Box::new(l.clone()),  Box::new(r.clone()));
         return Ok(AstKind::BinOp(binop));
@@ -748,15 +758,33 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
 
     //ltype2:pointer
     //rtype2:num
-    //let obj_size = node_number(8, &token)?;
     let obj_size = match &lhs {
         AstKind::LocalVar {name: _, ntype, offset: _ } => {
-            ntype.size
+            if ntype.kind == NodeTypeKind::Array {
+                match ntype.base.clone() {
+                    Some(b) => b.size,
+                    _ => return Err(Box::new(ParseError{err: format!("Array has no base {:?}", lhs)})),
+                }
+            } else {
+                ntype.size
+            }
         },
         AstKind::UniOp(uniop) => {
-            match &*uniop.l {
-                AstKind::LocalVar {name:_, ntype, offset:_} => array_element_size(&ntype)?,
-                _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
+            if uniop.op == Deref {
+                println!("Uniop {:?}", uniop);
+                if uniop.ntype.kind == NodeTypeKind::Array {
+                    match uniop.ntype.base.clone() {
+                        Some(b) => b.size,
+                        None => return Err(Box::new(ParseError { err: format!("deref + array is not basetype {:?} ", uniop) })),
+                    }
+                } else {
+                    uniop.ntype.size
+                }
+            } else {
+                match &*uniop.l {
+                    AstKind::LocalVar { name: _, ntype, offset: _ } => array_element_size(&ntype)?,
+                    _ => return Err(Box::new(ParseError { err: format!("lhs is not pointer {:?} ", lhs) }))
+                }
             }
         }
         _ => return Err(Box::new(ParseError{err: format!("lhs is not pointer {:?} ", lhs)}))
@@ -764,8 +792,50 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
 
     let obj_size_node = node_number(obj_size as i64)?;
     let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node);
-    let binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul);
+    //let mut binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul);
+
+
+    let mut binop= match array_type(lhs)? {
+        Some(ntype) => new_node_ntype(BinOpKind::Add, lhs.clone(),  node_mul, ntype),
+        _ => new_node(BinOpKind::Add, lhs.clone(),  node_mul)
+    };
+
+
+    println!("binop {:?}", binop);
     return Ok(binop);
+}
+
+// ASTがArrayなら型を返す。
+// Arrayでない時はNoneを返す。
+fn array_type(ast :&Ast) -> Result<Option<ast::NodeType>, Box<dyn Error>> {
+    match ast {
+        AstKind::LocalVar {name: _, ntype, offset: _ } => {
+            if ntype.kind == NodeTypeKind::Array {
+                Ok(Some(ntype.clone()))
+            } else {
+                Ok(None)
+            }
+        }
+        _ => Ok(None),
+    }
+}
+
+// ASTがArrayなら1次元減らした型を返す。
+// Arrayでない時はNoneを返す。
+fn array_deref(ast :&Ast) -> Result<Option<ast::NodeType>, Box<dyn Error>> {
+    match ast {
+        AstKind::LocalVar {name: _, ntype, offset: _ } => {
+            if ntype.kind == NodeTypeKind::Array {
+                 match ntype.base.clone() {
+                     Some(b) => Ok(Some(*b)),
+                     _ => return Err(Box::new(ParseError { err: format!("Array has no base {:?}", ast) })),
+                 }
+             } else {
+                 Ok(None)
+            }
+        }
+        _ => Ok(None),
+    }
 }
 
 fn array_element_size(ntype: &NodeType) -> Result<usize, Box<dyn Error>> {
