@@ -176,7 +176,6 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                             return Err(Box::new(TypeError { err: format!("invalid pointer dereference {:?}", ltype) }));
                         }
                     };
-                    println!("deref dst_type {:?}", dst_type);
                     match dst_type.kind {
                         NodeTypeKind::Ptr | NodeTypeKind::Array => {
                             let base_type = match &dst_type.base {

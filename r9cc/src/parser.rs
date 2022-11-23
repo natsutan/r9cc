@@ -731,12 +731,8 @@ fn get_type(node :&Ast) -> Option<NodeType> {
 
 
 fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
-
     add_type(l)?;
     add_type(r)?;
-
-    println!("new_add l {:?}", l);
-    println!("new_add r {:?}", r);
 
     if is_integer(l) && is_integer(r) {
         let binop  = BinOp::new(BinOpKind::Add, Box::new(l.clone()),  Box::new(r.clone()));
@@ -771,7 +767,6 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
         },
         AstKind::UniOp(uniop) => {
             if uniop.op == Deref {
-                println!("Uniop {:?}", uniop);
                 if uniop.ntype.kind == NodeTypeKind::Array {
                     match uniop.ntype.base.clone() {
                         Some(b) => b.size,
@@ -792,16 +787,10 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
 
     let obj_size_node = node_number(obj_size as i64)?;
     let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node);
-    //let mut binop  = new_node(BinOpKind::Add, lhs.clone(),  node_mul);
-
-
     let mut binop= match array_type(lhs)? {
         Some(ntype) => new_node_ntype(BinOpKind::Add, lhs.clone(),  node_mul, ntype),
         _ => new_node(BinOpKind::Add, lhs.clone(),  node_mul)
     };
-
-
-    println!("binop {:?}", binop);
     return Ok(binop);
 }
 
