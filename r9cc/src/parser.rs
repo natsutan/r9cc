@@ -351,13 +351,30 @@ fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn E
                     return Ok(node);
                 }
 
-                _ => return primary(tokenizer, frame),
+                _ => return postfix(tokenizer, frame),
             }
         }
         _ => {
-            return primary(tokenizer, frame);
+            return postfix(tokenizer, frame);
         }
     }
+}
+
+fn postfix(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let mut node = primary(tokenizer, frame)?;
+    let mut token = tokenizer.get();
+
+    while token.ttype == TType::LBracket {
+        tokenizer.consume();
+        let mut idx = expr(tokenizer, frame)?;
+        skip(tokenizer, TType::RBracket)?;
+        let node_add = new_add(&mut node.clone(), &mut idx.clone())?;
+        node = new_unary(UniOpKind::Deref, node_add);
+        token = tokenizer.get();
+
+    }
+
+    Ok(node)
 }
 
 fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
