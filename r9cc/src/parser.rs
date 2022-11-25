@@ -214,6 +214,15 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
             }
             Err(Box::new(ParseError{err: format!("token {:?} must be )", token)}))
         }
+        TType::SizeOf => {
+            let mut node = unary(tokenizer, frame)?;
+            let node_type = add_type(&mut node)?;
+            let target_size = match node_type {
+                Some(nt) => nt.size,
+                _ => return Err(Box::new(ParseError{err: format!("target of sizeof has no nodetype {:?}  )", node)})),
+            };
+            node_number(target_size as i64)
+        }
         _ => Err(Box::new(ParseError{err: format!("token {:?} must be number", token)})),
     }
 }

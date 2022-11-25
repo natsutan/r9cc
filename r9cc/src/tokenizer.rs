@@ -17,6 +17,7 @@ pub enum TType {
     Else,
     For,
     While,
+    SizeOf,
     Comma,
     SemiColon,
     Return,
@@ -154,6 +155,7 @@ impl Tokenizer {
                                 "for" => self.tokens.push(Token::new(TType::For, self.src_line_num, idx)),
                                 "while" => self.tokens.push(Token::new(TType::While, self.src_line_num, idx)),
                                 "int" => self.tokens.push(Token::new(TType::Int, self.src_line_num, idx)),
+                                "sizeof" => self.tokens.push(Token::new(TType::SizeOf, self.src_line_num, idx)),
                                 _ =>  self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx)),
                             }
                         }
