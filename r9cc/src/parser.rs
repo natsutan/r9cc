@@ -3,6 +3,7 @@ use crate::ast::*;
 use std::error::Error;
 use std::fmt;
 use crate::ast;
+use crate::ast::AstKind::LocalVar;
 use crate::ast::UniOpKind::Deref;
 use crate::typesys::{add_type, is_integer, is_pointer};
 
@@ -21,45 +22,63 @@ impl fmt::Display for ParseError {
 
 pub struct Parser {
     pub nodes: Program,
-    pub frame: Frame,
+    pub locals: Frame,
+    pub globals: Frame,
 }
+
 
 
 impl Parser {
     pub fn new() -> Parser {
         Parser {
             nodes: vec![],
-            frame: vec![],
+            locals: vec![],
+            globals: vec![]
         }
     }
 
     pub fn parse(&mut self, tokenizer: &mut Tokenizer) -> Result<(), Box<dyn Error>> {
         while !tokenizer.at_eof() {
-            let func = function(tokenizer, &mut self.frame)?;
-            self.nodes.push(func);
+            let base_type = declspec(tokenizer)?;
+
+            if is_function(tokenizer)? {
+                let func = function(tokenizer, &base_type, &mut self.globals)?;
+                self.nodes.push(func);
+                continue
+            }
+
+            global_variable(tokenizer, &base_type, &mut self.globals)?;
+
         }
         Ok(())
     }
 
 }
 
-fn find_lvar(name: &String, frame: &Frame) -> Result<LocalVariable, ()> {
-    for lv in frame.iter() {
+fn find_lvar(name: &String, locals: &Frame, globals: &Frame) -> Result<Obj, ()> {
+    for lv in locals.iter() {
         if *name == lv.name {
             return Ok(lv.clone())
         }
     }
+
+    for lv in globals.iter() {
+        if *name == lv.name {
+            return Ok(lv.clone())
+        }
+    }
+
     Err(())
 }
 
 
 // stmt = expr-stmt
-fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn stmt(tokenizer: &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let token = tokenizer.get();
     match token.ttype {
         TType::Return => {
             tokenizer.consume();
-            let node_l = expr(tokenizer, frame)?;
+            let node_l = expr(tokenizer, locals, globals)?;
             let token_semicolon = tokenizer.get();
             if token_semicolon.ttype == TType::SemiColon {
                 tokenizer.consume();
@@ -71,19 +90,19 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
         }
         TType::LBrace => {
             tokenizer.consume();
-            return compound_stmt(tokenizer, frame)
+            return compound_stmt(tokenizer, locals, globals)
         },
         TType::If => {
             tokenizer.consume();
 
             skip(tokenizer, TType::LParen)?;
-            let cond = expr(tokenizer, frame)?;
+            let cond = expr(tokenizer, locals, globals)?;
             skip(tokenizer, TType::RParen)?;
-            let then = stmt(tokenizer, frame)?;
+            let then = stmt(tokenizer, locals, globals)?;
             let token_else = tokenizer.get();
             if token_else.ttype == TType::Else {
                 tokenizer.consume();
-                let els = stmt(tokenizer, frame)?;
+                let els = stmt(tokenizer, locals, globals)?;
                 return Ok(new_if_else(cond, then, els));
             } else {
                 return Ok(new_if(cond, then));
@@ -92,30 +111,30 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
         TType::For => {
             tokenizer.consume();
             skip(tokenizer, TType::LParen)?;
-            let init = expr_stmt(tokenizer, frame)?;
+            let init = expr_stmt(tokenizer, locals, globals)?;
             //skip(tokenizer, Comma)?;
             let tc = tokenizer.get();
             let cond = match tc.ttype {
                 TType::SemiColon => new_block(vec![]),
-                _ => expr(tokenizer, frame)?
+                _ => expr(tokenizer, locals, globals)?
             };
             skip(tokenizer, TType::SemiColon)?;
             let ti = tokenizer.get();
             let inc =  match ti.ttype {
                 TType::RParen => new_block(vec![]),
-                _ => expr(tokenizer, frame)?
+                _ => expr(tokenizer, locals, globals)?
             };
             skip(tokenizer, TType::RParen)?;
-            let then = stmt(tokenizer, frame)?;
+            let then = stmt(tokenizer, locals, globals)?;
 
             return Ok(new_for(init, cond, inc, then));
         },
         TType::While => {
             tokenizer.consume();
             skip(tokenizer, TType::LParen)?;
-            let cond = expr(tokenizer, frame)?;
+            let cond = expr(tokenizer, locals, globals)?;
             skip(tokenizer, TType::RParen)?;
-            let then = stmt(tokenizer, frame)?;
+            let then = stmt(tokenizer, locals, globals)?;
 
             let init = new_block(vec![]);
             let inc = new_block(vec![]);
@@ -123,13 +142,13 @@ fn stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
             return Ok(new_for(init, cond, inc, then));
 
         }
-        _ =>  expr_stmt(tokenizer, frame)
+        _ =>  expr_stmt(tokenizer, locals, globals)
     }
 }
 
 
 // stmt = expr-stmt
-fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn compound_stmt(tokenizer: &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let _token_head = tokenizer.get();
     let mut body :Vec<Box<Ast>> =  vec![];
 
@@ -137,12 +156,12 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Bo
     while token.ttype != TType::RBrace {
         match token.ttype {
             TType::Int => {
-                let mut dec = declaration(tokenizer, frame)?;
+                let mut dec = declaration(tokenizer, locals, globals)?;
                 add_type(&mut dec)?;
                 body.push(Box::from(dec));
             }
             _ => {
-                let mut st = stmt(tokenizer, frame)?;
+                let mut st = stmt(tokenizer, locals, globals)?;
                 add_type(&mut st)?;
                 body.push(Box::from(st));
             }
@@ -156,7 +175,7 @@ fn compound_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Bo
 }
 
 // expr-stmt = expr ";"
-fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn expr_stmt(tokenizer: &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
 
     let token = tokenizer.get();
     if token.ttype == TType::SemiColon {
@@ -165,7 +184,7 @@ fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dy
         return Ok(node)
     }
 
-    let node_expr = expr(tokenizer, frame)?;
+    let node_expr = expr(tokenizer, locals, globals)?;
     let node = new_unary(UniOpKind::NdExprStmt, node_expr);
 
     let token_semicolon = tokenizer.get();
@@ -177,7 +196,7 @@ fn expr_stmt(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dy
     return  Ok(node)
 }
 
-fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn primary(tokenizer: &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let token = tokenizer.get();
 
     tokenizer.consume();
@@ -191,11 +210,11 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
             let token_rpalan = tokenizer.get();
             if token_rpalan.ttype == TType::LParen {
                 tokenizer.consume();
-                return funcall(tokenizer, name, frame);
+                return funcall(tokenizer, name, locals, globals);
             }
 
             //variable
-            let search_result = find_lvar(&name, frame);
+            let search_result = find_lvar(&name, locals, globals);
             match search_result {
                 Ok(lv) => {
                     node_variable(name, lv.ntype, lv.offset)
@@ -206,7 +225,7 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
             }
         },
         TType::LParen => {
-            let node = expr(tokenizer, frame)?;
+            let node = expr(tokenizer, locals,globals)?;
             let next_token = tokenizer.get();
             if next_token.ttype == TType::RParen {
                 tokenizer.consume();
@@ -215,7 +234,7 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
             Err(Box::new(ParseError{err: format!("token {:?} must be )", token)}))
         }
         TType::SizeOf => {
-            let mut node = unary(tokenizer, frame)?;
+            let mut node = unary(tokenizer, locals, globals)?;
             let node_type = add_type(&mut node)?;
             let target_size = match node_type {
                 Some(nt) => nt.size,
@@ -227,7 +246,7 @@ fn primary(tokenizer: &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn 
     }
 }
 
-fn funcall(tokenizer : &mut Tokenizer, funcname: String, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn funcall(tokenizer : &mut Tokenizer, funcname: String, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
 
     let mut args :Vec<Box<Ast>> = vec![];
     let mut token = tokenizer.get();
@@ -238,7 +257,7 @@ fn funcall(tokenizer : &mut Tokenizer, funcname: String, frame: &mut Frame) -> R
             skip(tokenizer, TType::Comma)?;
         }
         first = false;
-        let node = assign(tokenizer, frame)?;
+        let node = assign(tokenizer, locals, globals)?;
         args.push(Box::new(node));
         token = tokenizer.get();
     }
@@ -248,8 +267,8 @@ fn funcall(tokenizer : &mut Tokenizer, funcname: String, frame: &mut Frame) -> R
     return Ok(node);
 }
 
-fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    let mut node = unary(tokenizer, frame)?;
+fn mul(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let mut node = unary(tokenizer, locals, globals)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -258,12 +277,12 @@ fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
                 match &*s {
                     "*" => {
                         tokenizer.consume();
-                        let node_r = unary(tokenizer, frame)?;
+                        let node_r = unary(tokenizer, locals, globals)?;
                         node = new_node(BinOpKind::Mult, node, node_r);
                     }
                     "/" => {
                         tokenizer.consume();
-                        let node_r = unary(tokenizer, frame)?;
+                        let node_r = unary(tokenizer, locals, globals)?;
                         node = new_node(BinOpKind::Div, node, node_r);
                     }
                     _ => return Ok(node),
@@ -276,19 +295,19 @@ fn mul(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Err
     }
 }
 
-fn expr(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    return assign(tokenizer, frame);
+fn expr(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    return assign(tokenizer, locals, globals);
 }
 
-fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    let mut node = equality(tokenizer, frame)?;
+fn assign (tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let mut node = equality(tokenizer, locals, globals)?;
     let token = tokenizer.get();
     match token.ttype {
         TType::Operator(s) => {
             match &*s {
                 "=" => {
                     tokenizer.consume();
-                    let node_r = assign(tokenizer, frame)?;
+                    let node_r = assign(tokenizer, locals, globals)?;
                     node = new_node(BinOpKind::Assign, node, node_r);
                     return Ok(node);
                 },
@@ -301,8 +320,8 @@ fn assign (tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn
 }
 
 
-fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    let mut node = mul(tokenizer, frame)?;
+fn add(tokenizer : &mut Tokenizer, locals: &mut Frame, globals :&mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let mut node = mul(tokenizer, locals, globals)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -311,12 +330,12 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Erro
                 match &*s {
                     "+" => {
                         tokenizer.consume();
-                        let mut node_r = mul(tokenizer, frame)?;
+                        let mut node_r = mul(tokenizer, locals, globals)?;
                         node = new_add(&mut node, &mut node_r)?;
                     }
                     "-" => {
                         tokenizer.consume();
-                        let mut node_r = mul(tokenizer, frame)?;
+                        let mut node_r = mul(tokenizer, locals, globals)?;
                         node = new_sub(&mut node, &mut node_r)?;
                     }
                     _ => return Ok(node),
@@ -327,10 +346,9 @@ fn add(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Erro
             }
         }
     }
-
 }
 
-fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn unary(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let next_token = tokenizer.get();
 
     match next_token.ttype {
@@ -338,44 +356,44 @@ fn unary(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn E
             match &*s {
                 "+" => {
                     tokenizer.consume();
-                    return unary(tokenizer, frame);
+                    return unary(tokenizer, locals, globals);
                 },
                 "-" => {
                     tokenizer.consume();
                     let node_0 = node_number(0)?;
-                    let node_r = primary(tokenizer, frame)?;
+                    let node_r = primary(tokenizer, locals, globals)?;
                     let node = new_node(BinOpKind::Sub, node_0, node_r);
                     return Ok(node);
                 },
                 "*" => {
                     tokenizer.consume();
-                    let node_l = unary(tokenizer, frame)?;
+                    let node_l = unary(tokenizer, locals, globals)?;
                     let node = new_unary(UniOpKind::Deref,  node_l);
                     return Ok(node);
                 }
                 "&" => {
                     tokenizer.consume();
-                    let node_l = unary(tokenizer, frame)?;
+                    let node_l = unary(tokenizer, locals, globals)?;
                     let node = new_unary(UniOpKind::Addr, node_l);
                     return Ok(node);
                 }
 
-                _ => return postfix(tokenizer, frame),
+                _ => return postfix(tokenizer, locals, globals),
             }
         }
         _ => {
-            return postfix(tokenizer, frame);
+            return postfix(tokenizer, locals, globals);
         }
     }
 }
 
-fn postfix(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    let mut node = primary(tokenizer, frame)?;
+fn postfix(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let mut node = primary(tokenizer, locals, globals)?;
     let mut token = tokenizer.get();
 
     while token.ttype == TType::LBracket {
         tokenizer.consume();
-        let mut idx = expr(tokenizer, frame)?;
+        let mut idx = expr(tokenizer, locals, globals)?;
         skip(tokenizer, TType::RBracket)?;
         let node_add = new_add(&mut node.clone(), &mut idx.clone())?;
         node = new_unary(UniOpKind::Deref, node_add);
@@ -386,8 +404,8 @@ fn postfix(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn
     Ok(node)
 }
 
-fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    let node = relational(tokenizer, frame)?;
+fn equality(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let node = relational(tokenizer, locals, globals)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -396,13 +414,13 @@ fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dy
                 match &*s {
                     "==" => {
                         tokenizer.consume();
-                        let node_r = relational(tokenizer, frame)?;
+                        let node_r = relational(tokenizer, locals, globals)?;
                         let node = new_node(BinOpKind::Eq, node, node_r);
                         return Ok(node);
                     },
                     "!=" => {
                         tokenizer.consume();
-                        let node_r = relational(tokenizer, frame)?;
+                        let node_r = relational(tokenizer, locals, globals)?;
                         let node = new_node(BinOpKind::Ne, node, node_r);
                         return Ok(node);
                     },
@@ -421,8 +439,8 @@ fn equality(tokenizer : &mut Tokenizer, frame: &mut Frame) -> Result<Ast, Box<dy
 
 
 
-fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
-    let node = add(tokenizer, frame)?;
+fn relational(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let node = add(tokenizer, locals, globals)?;
 
     loop {
         let next_token = tokenizer.get();
@@ -431,25 +449,25 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<d
                 match &*s {
                     "<" => {
                         tokenizer.consume();
-                        let node_r = add(tokenizer, frame)?;
+                        let node_r = add(tokenizer, locals, globals)?;
                         let node = new_node(BinOpKind::Lt, node, node_r);
                         return Ok(node);
                     },
                     "<=" => {
                         tokenizer.consume();
-                        let node_r = add(tokenizer, frame)?;
+                        let node_r = add(tokenizer, locals, globals)?;
                         let node = new_node(BinOpKind::Le, node, node_r);
                         return Ok(node);
                     },
                     ">" => {
                         tokenizer.consume();
-                        let node_l = add(tokenizer, frame)?;
+                        let node_l = add(tokenizer, locals, globals)?;
                         let node = new_node(BinOpKind::Lt, node_l, node);
                         return Ok(node);
                     },
                     ">=" => {
                         tokenizer.consume();
-                        let node_l = add(tokenizer, frame)?;
+                        let node_l = add(tokenizer, locals, globals)?;
                         let node = new_node(BinOpKind::Le, node_l, node);
                         return Ok(node);
                     },
@@ -467,7 +485,7 @@ fn relational(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<d
 
 
 
-fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
+fn declaration(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let base_type = declspec(tokenizer)?;
     //tokenizer.consume();
     let mut token = tokenizer.get();
@@ -481,16 +499,15 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
         }
         i = i+1;
         let (var_name, ntype) = declarator(tokenizer, &base_type)?;
-//        let var_name = get_ident(tokenizer)?;
 
-        let search_result = find_lvar(&var_name, frame);
+        let search_result = find_lvar(&var_name, locals, globals);
         match search_result {
             Ok(_) => {
                 return Err(Box::new(ParseError{err: format!("duplicate variable {:?}  )", tk)}));
             }
             Err(()) => {}
         }
-        let lhs = new_lvar(var_name, ntype, frame)?;
+        let lhs = new_lvar(var_name, ntype, locals)?;
 
         let token_eq = tokenizer.get();
         match token_eq.ttype {
@@ -507,7 +524,7 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
         }
         tokenizer.consume();
 
-        let rhs = assign(tokenizer, frame)?;
+        let rhs = assign(tokenizer, locals, globals)?;
         let node_assign = new_node(BinOpKind::Assign, lhs, rhs);
         let node_expr_stmt = new_unary(UniOpKind::NdExprStmt, node_assign);
         blcok.push(Box::new(node_expr_stmt));
@@ -517,9 +534,8 @@ fn declaration(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Ast, Box<
     Ok(new_block(blcok))
 }
 
-fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Box<dyn Error>> {
-    let ntype = declspec(tokenizer)?;
-    let (func_name, return_type) = declarator(tokenizer, &ntype)?;
+fn function(tokenizer : &mut Tokenizer, base_type: &NodeType, globals :&mut Frame) -> Result<Obj, Box<dyn Error>> {
+    let (func_name, return_type) = declarator(tokenizer, &base_type)?;
 
     skip(tokenizer, TType::LParen)?;
     let params = create_param_lvars(tokenizer)?;
@@ -528,16 +544,69 @@ fn function(tokenizer : &mut Tokenizer,frame: &mut Frame) -> Result<Function, Bo
 
     let mut locals = params.clone();
 
-    let body = compound_stmt(tokenizer, &mut locals)?;
+    let body = compound_stmt(tokenizer, &mut locals, globals)?;
     let stack_size = (locals.len() * 8) as u64 ;
 
     println!("create function: {}", func_name);
 
-    Ok(Function{name: func_name , params, locals, stack_size, body, return_type})
+    Ok(new_func(func_name , params, locals, stack_size, body, return_type))
 }
 
+
+fn global_variable(tokenizer : &mut Tokenizer, base_type: &NodeType, globals: &mut Frame) -> Result<(), Box<dyn Error>> {
+    let mut token = tokenizer.get();
+    let mut first = true;
+
+    while  token.ttype != TType::SemiColon {
+        if !first {
+            skip(tokenizer, TType::Comma)?;
+        }
+        first = false;
+
+        let (var_name, ntype) = declarator(tokenizer, base_type)?;
+        new_gvar(var_name, ntype, globals);
+        token = tokenizer.get();
+    }
+
+    tokenizer.consume();
+    Ok(())
+}
+
+// 先読みして、(か;で関数かグローバル変数かを判断する。
+fn is_function(tokenizer: &mut Tokenizer) ->  Result<bool, Box<dyn Error>> {
+    let mut token = tokenizer.get();
+    let save = tokenizer.get_pos();
+
+    while token.ttype != TType::EOF {
+        match token.ttype {
+            TType::LParen => {
+                tokenizer.set_pos(save);
+                return Ok(true);
+            }
+            TType::SemiColon => {
+                tokenizer.set_pos(save);
+                return Ok(false);
+            }
+            _ => {
+                tokenizer.consume();
+                token = tokenizer.get();
+            }
+        }
+    }
+
+    Err(Box::new(ParseError { err: format!("unexpeted EOF)") }))
+}
+
+
+
+fn new_func(name: String, params :Vec<Obj>, locals :Vec<Obj>, stack_size: u64, body :Ast, return_type: NodeType) -> Obj {
+    Obj { name, ntype:return_type.clone(), params, locals, stack_size, body, return_type, is_local: false, is_func: true, offset: 0}
+}
+
+
 fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>> {
-    let mut frame :Frame = vec![];
+    let mut locals:Frame = vec![];
+    let globals_empty:Frame = vec![];
     let mut token = tokenizer.get();
     let mut i:i64 = 0;
 
@@ -549,27 +618,59 @@ fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>
         i = i + 1;
         let base_type = declspec(tokenizer)?;
         let (var_name, ntype) = declarator(tokenizer, &base_type)?;
-        //let  = get_ident(tokenizer)?;
-        let search_result = find_lvar(&var_name, &frame);
+
+        let search_result = find_lvar(&var_name, &locals, &globals_empty);
         match search_result {
             Ok(_) => {
                 return Err(Box::new(ParseError { err: format!("duplicate parameter {:?}  )", tk) }));
             }
             Err(()) => {}
         }
-        new_lvar(var_name, ntype, &mut frame)?;
+        new_lvar(var_name, ntype, &mut locals)?;
         token = tokenizer.get();
     }
-    Ok(frame)
+    Ok(locals)
 }
 
 
 fn new_lvar(name: String, ntype: NodeType, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let offset = -(frame.len() as i64 +  1) * 8;
-    let new_lv = LocalVariable{name: name.clone(), ntype: ntype.clone(), offset};
+//    let new_lv = Obj {name: name.clone(), ntype: ntype.clone(), offset};
+    let new_lv = Obj{
+        name: name.clone(),
+        ntype: ntype.clone(),
+        params: vec![],
+        locals: vec![],
+        stack_size: 0,
+        body: LocalVar {name: name.clone(), ntype: ntype.clone(), offset},
+        return_type: ntype.clone(),
+        is_local: true,
+        is_func: false,
+        offset: 0
+    };
+
+
     frame.push(new_lv);
     node_variable(name, ntype, offset)
 }
+
+fn new_gvar(name :String, ntype :NodeType, globals: &mut Frame) {
+    let new_gvar = Obj{
+        name: name.clone(),
+        ntype: ntype.clone(),
+        params: vec![],
+        locals: vec![],
+        stack_size: 0,
+        body: LocalVar {name: name.clone(), ntype: ntype.clone(), offset:0},
+        return_type: ntype.clone(),
+        is_local: false,
+        is_func: false,
+        offset: 0
+    };
+    globals.push(new_gvar);
+}
+
+
 
 fn get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
     let token = tokenizer.get();
@@ -612,7 +713,8 @@ fn type_suffix(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
     let mut token = tokenizer.get();
 
     if token.ttype == TType::LParen {
-        return Ok(ntype.clone());
+        let func_type = NodeType{kind :NodeTypeKind::Func, size :0, len  : 0, base: None};
+        return Ok(func_type);
     }
     // [ 配列のindex
     if token.ttype == TType::LBracket {

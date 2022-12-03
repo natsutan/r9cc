@@ -196,6 +196,14 @@ impl Tokenizer {
         }
     }
 
+    pub fn get_pos(&self) -> usize {
+        self.token_pos
+    }
+
+    pub fn set_pos(&mut self, pos:usize) -> () {
+        self.token_pos = pos;
+    }
+
     pub fn at_eof(&self) -> bool {
         self.tokens[self.token_pos].ttype == TType::EOF
     }

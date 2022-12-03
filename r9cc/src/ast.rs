@@ -74,20 +74,19 @@ pub enum AstKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LocalVariable {
+pub struct Obj {
     pub name: String,
     pub ntype: NodeType,
-    pub offset: i64,
-}
-
-pub struct Function {
-    pub name: String,
-    pub params: Vec<LocalVariable>,
-    pub locals: Vec<LocalVariable>,
+    pub params: Vec<Obj>,
+    pub locals: Vec<Obj>,
     pub stack_size: u64,
     pub body: Ast,
     pub return_type: NodeType,
+    pub is_local: bool,
+    pub is_func: bool,
+    pub offset: i64,
 }
+
 
 impl BinOp {
     pub fn new(op:BinOpKind, l: Box<Ast>, r: Box<Ast>) -> BinOp {
@@ -126,8 +125,8 @@ impl fmt::Display for NodeType {
 
 
 pub type Ast = AstKind;
-pub type Program = Vec<Function>;
-pub type Frame = Vec<LocalVariable>;
+pub type Program = Vec<Obj>;
+pub type Frame = Vec<Obj>;
 
 pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> {
     let mut file = File::create(path)?;
@@ -145,7 +144,7 @@ pub fn write_dot(program: &Program, path :&Path) -> Result<(),  std::io::Error> 
     Ok(())
 }
 
-fn write_function(func :&Function, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
+fn write_function(func :&Obj, file: &mut File, cnt: u64) -> Result<u64, std::io::Error> {
     let self_node_name = node_name(cnt);
     writeln!(file, "{}", format!("{}[label={}, shape=\"box\"]", self_node_name, func.name))?;
     let body_node_name = node_name(cnt + 1);

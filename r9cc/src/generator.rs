@@ -35,7 +35,7 @@ impl GenCnt {
 
 
 
-fn gen_stmt(node :&Ast, func_name: &String, locals: &Vec<LocalVariable>, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
+fn gen_stmt(node :&Ast, func_name: &String, locals: &Vec<Obj>, output :&mut File, dc: &mut GenCnt) -> Result<(), Box<dyn Error>>  {
     match node {
         AstKind::UniOp(uniop) => {
             match uniop.op {
@@ -98,12 +98,17 @@ fn gen_stmt(node :&Ast, func_name: &String, locals: &Vec<LocalVariable>, output 
 }
 
 
-pub fn codegen(program: &mut Program, _frame :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
+pub fn codegen(program: &mut Program, globals :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
     let mut dc = GenCnt {depth:0, label: 1};
 
     assign_lver_offset(program);
-
+    emit_data(globals, output);
+    writeln!(output, "");
     for function in program {
+        if !function.is_func {
+            continue;
+        }
+
         writeln!(output, ".globl {}", function.name)?;
         writeln!(output, "{}:", function.name)?;
         // Prologue
@@ -138,6 +143,10 @@ fn argreg(i: usize) -> String {
 
 fn assign_lver_offset(program :&mut Program) {
     for f in program {
+        if !f.is_func {
+            continue;
+        }
+
         let mut offset = 0;
         for v in &mut f.locals {
             offset += v.ntype.size as i64;
@@ -147,22 +156,36 @@ fn assign_lver_offset(program :&mut Program) {
     }
 }
 
+fn emit_data(globals :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> {
+    for var in globals {
+        writeln!(output, "  .data")?;
+        writeln!(output, "  .globl {}", var.name)?;
+        writeln!(output, "{}:", var.name)?;
+        writeln!(output, "  .zero {}", var.ntype.size)?;
+    }
+    Ok(())
+}
+
 fn aligin_to(n: i64, align :i64) -> u64 {
     let x:f64 = (n + align - 1) as f64 / align as f64;
     x.floor() as u64 * align as u64
 }
 
-fn gen_addr(node: &Ast, locals: &Vec<LocalVariable> ,output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+fn gen_addr(node: &Ast, locals: &Vec<Obj>, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match node {
         AstKind::LocalVar { name, ntype: _, offset: _ } => {
             let mut offset = 0;
             for v in locals {
+                //local variable
                 if v.name == *name {
                     offset = v.offset;
-                    break;
+                    writeln!(output, "  lea {}(%rbp), %rax", offset)?;
+                    return Ok(());
                 }
             }
-            writeln!(output, "  lea {}(%rbp), %rax", offset)?;
+            //global variable
+            writeln!(output, "  lea {}(%rip), %rax", name)?;
+
             Ok(())
         }
         AstKind::UniOp(uniop)=> {
@@ -218,7 +241,7 @@ fn pop(s: &String, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Er
 
 
 
-fn gen_expr(node :&Ast, locals: &Vec<LocalVariable>, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
+fn gen_expr(node :&Ast, locals: &Vec<Obj>, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
 
     match node.clone() {
         AstKind::Num{n, ntype:_}=> {
