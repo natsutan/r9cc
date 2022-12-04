@@ -102,44 +102,22 @@ pub fn codegen(program: &mut Program, globals :&Frame, output :&mut File) -> Res
     let mut dc = GenCnt {depth:0, label: 1};
 
     assign_lver_offset(program);
-    emit_data(globals, output);
-    writeln!(output, "");
-    for function in program {
-        if !function.is_func {
-            continue;
-        }
-
-        writeln!(output, ".globl {}", function.name)?;
-        writeln!(output, "{}:", function.name)?;
-        // Prologue
-        writeln!(output, "  push %rbp")?;       //ベースポインタを保存
-        writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
-        writeln!(output, "  sub ${}, %rsp", function.stack_size)?;  //変数の領域確保
-        writeln!(output, "")?;
-
-        //引数の処理
-        for (i, val) in function.locals.iter().enumerate() {
-            writeln!(output, "# val.offset {}", val.offset)?;
-            writeln!(output, "  mov {}, {}(%rbp)", argreg(i), val.offset)?;
-        }
-
-        gen_stmt(&function.body, &function.name, &function.locals, output, &mut dc)?;
-        assert_eq!(dc.depth, 0);
-        writeln!(output, ".L.return.{}:", function.name)?;
-        writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
-        writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
-        writeln!(output, "  ret")?;
-        writeln!(output, "")?;
-
-    }
+    emit_data(globals, output)?;
+    emit_text(program, output, &mut dc)?;
 
     Ok(())
 }
 
-fn argreg(i: usize) -> String {
+fn argreg8(i: usize) -> String {
+    let table = ["%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"];
+    table[i].to_string()
+}
+
+fn argreg64(i: usize) -> String {
     let table = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"];
     table[i].to_string()
 }
+
 
 fn assign_lver_offset(program :&mut Program) {
     for f in program {
@@ -163,8 +141,46 @@ fn emit_data(globals :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> 
         writeln!(output, "{}:", var.name)?;
         writeln!(output, "  .zero {}", var.ntype.size)?;
     }
+    writeln!(output, "")?;
     Ok(())
 }
+
+fn emit_text(program :&Program, output :&mut File, dc :&mut GenCnt)-> Result<(),  Box<dyn Error>>  {
+    for function in program {
+        if !function.is_func {
+            continue;
+        }
+
+        writeln!(output, ".globl {}", function.name)?;
+        writeln!(output, "{}:", function.name)?;
+        // Prologue
+        writeln!(output, "  push %rbp")?;       //ベースポインタを保存
+        writeln!(output, "  mov %rsp, %rbp")?; //ベースポインタに関数に入った時のスタックポインタを保存
+        writeln!(output, "  sub ${}, %rsp", function.stack_size)?;  //変数の領域確保
+        writeln!(output, "")?;
+
+        //引数の処理
+        for (i, val) in function.locals.iter().enumerate() {
+            writeln!(output, "# val.offset {}", val.offset)?;
+            if val.ntype.size == 1 {
+                writeln!(output, "  mov {}, {}(%rbp)", argreg8(i), val.offset)?;
+            } else {
+                writeln!(output, "  mov {}, {}(%rbp)", argreg64(i), val.offset)?;
+            }
+        }
+
+        gen_stmt(&function.body, &function.name, &function.locals, output, dc)?;
+        assert_eq!(dc.depth, 0);
+        writeln!(output, ".L.return.{}:", function.name)?;
+        writeln!(output, "  mov %rbp, %rsp")?; //スタックポインタの復元
+        writeln!(output, "  pop %rbp")?;        //ベースポインタの復元
+        writeln!(output, "  ret")?;
+        writeln!(output, "")?;
+
+    }
+    Ok(())
+}
+
 
 fn aligin_to(n: i64, align :i64) -> u64 {
     let x:f64 = (n + align - 1) as f64 / align as f64;
@@ -174,12 +190,10 @@ fn aligin_to(n: i64, align :i64) -> u64 {
 fn gen_addr(node: &Ast, locals: &Vec<Obj>, output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match node {
         AstKind::LocalVar { name, ntype: _, offset: _ } => {
-            let mut offset = 0;
             for v in locals {
                 //local variable
                 if v.name == *name {
-                    offset = v.offset;
-                    writeln!(output, "  lea {}(%rbp), %rax", offset)?;
+                    writeln!(output, "  lea {}(%rbp), %rax", v.offset)?;
                     return Ok(());
                 }
             }
@@ -207,6 +221,12 @@ fn load(node: &Ast, output : &mut File, _dc :&mut GenCnt) -> Result<(), Box<dyn 
             if ntype.kind == NodeTypeKind::Array {
                 return Ok(())
             }
+            if ntype.size == 1 {
+                writeln!(output, "  movsbq (%rax), %rax")?;
+            } else {
+                writeln!(output, "  mov (%rax), %rax")?;
+            }
+            return Ok(())
         }
         AstKind::UniOp(uniop) => {
             if uniop.ntype.kind == NodeTypeKind::Array {
@@ -215,14 +235,21 @@ fn load(node: &Ast, output : &mut File, _dc :&mut GenCnt) -> Result<(), Box<dyn 
         },
         _ => ()
     }
+
     writeln!(output, "  mov (%rax), %rax")?;
+
 
     Ok(())
 }
 
-fn store(output : &mut File, dc :&mut GenCnt) -> Result<(), Box<dyn Error>>  {
+fn store(output : &mut File, ntype :&NodeType, dc :&mut GenCnt) -> Result<(), Box<dyn Error>>  {
     pop(&"%rdi".to_string(), output, dc)?;
-    writeln!(output, "  mov %rax, (%rdi)")?;
+
+    if ntype.size == 1 {
+        writeln!(output, "  mov %al, (%rdi)")?;
+    } else {
+        writeln!(output, "  mov %rax, (%rdi)")?;
+    }
     Ok(())
 }
 
@@ -259,7 +286,7 @@ fn gen_expr(node :&Ast, locals: &Vec<Obj>, output : &mut File, dc :&mut GenCnt) 
                 gen_addr(&binop.l, locals, output, dc)?;
                 push(output, dc)?;
                 gen_expr(&binop.r, locals, output, dc)?;
-                store(output, dc)?;
+                store(output, &binop.ntype, dc)?;
                 writeln!(output, "")?;
                 return Ok(())
             }
@@ -329,7 +356,7 @@ fn gen_expr(node :&Ast, locals: &Vec<Obj>, output : &mut File, dc :&mut GenCnt) 
 
             while nargs > 0 {
                 nargs -= 1;
-                pop(&argreg(nargs), output, dc)?;
+                pop(&argreg64(nargs), output, dc)?;
             }
 
             writeln!(output, "  mov $0, %rax")?;

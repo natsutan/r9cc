@@ -22,6 +22,7 @@ pub enum TType {
     SemiColon,
     Return,
     Int,
+    Char,
     EOF,
 }
 
@@ -140,7 +141,7 @@ impl Tokenizer {
                         self.tokens.push(Token::new(TType::Operator("<".to_string()), self.src_line_num, idx));
                     }
                 }
-                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'a'..='z' => {
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'a'..='z' | '_' => {
                     if is_digit(&next_c) || is_alpha(&next_c) {
                         s.push(c);
                     } else {
@@ -155,6 +156,7 @@ impl Tokenizer {
                                 "for" => self.tokens.push(Token::new(TType::For, self.src_line_num, idx)),
                                 "while" => self.tokens.push(Token::new(TType::While, self.src_line_num, idx)),
                                 "int" => self.tokens.push(Token::new(TType::Int, self.src_line_num, idx)),
+                                "char" => self.tokens.push(Token::new(TType::Char, self.src_line_num, idx)),
                                 "sizeof" => self.tokens.push(Token::new(TType::SizeOf, self.src_line_num, idx)),
                                 _ =>  self.tokens.push(Token::new(TType::Identifier(s.to_string()), self.src_line_num, idx)),
                             }
@@ -179,7 +181,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn peek(&mut self, i:usize) -> Token {
+    pub fn _peek(&mut self, i:usize) -> Token {
         if self.token_pos+i >= self.tokens.len() {
             Token::new(TType::EOF, self.src_line_num, 0)
         } else {
@@ -220,7 +222,7 @@ fn is_digit(c :&char) -> bool {
 
 fn is_alpha(c :&char) -> bool {
     match c {
-        'a'..='z' => true,
+        'a'..='z' | '_' => true,
         _ => false,
     }
 }

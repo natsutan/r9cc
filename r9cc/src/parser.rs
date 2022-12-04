@@ -154,17 +154,14 @@ fn compound_stmt(tokenizer: &mut Tokenizer, locals: &mut Frame, globals: &mut Fr
 
     let mut token = tokenizer.get();
     while token.ttype != TType::RBrace {
-        match token.ttype {
-            TType::Int => {
-                let mut dec = declaration(tokenizer, locals, globals)?;
-                add_type(&mut dec)?;
-                body.push(Box::from(dec));
-            }
-            _ => {
-                let mut st = stmt(tokenizer, locals, globals)?;
-                add_type(&mut st)?;
-                body.push(Box::from(st));
-            }
+        if is_typename(&token) {
+            let mut dec = declaration(tokenizer, locals, globals)?;
+            add_type(&mut dec)?;
+            body.push(Box::from(dec));
+        } else {
+            let mut st = stmt(tokenizer, locals, globals)?;
+            add_type(&mut st)?;
+            body.push(Box::from(st));
         }
         token = tokenizer.get();
     }
@@ -393,7 +390,7 @@ fn postfix(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) 
 
     while token.ttype == TType::LBracket {
         tokenizer.consume();
-        let mut idx = expr(tokenizer, locals, globals)?;
+        let idx = expr(tokenizer, locals, globals)?;
         skip(tokenizer, TType::RBracket)?;
         let node_add = new_add(&mut node.clone(), &mut idx.clone())?;
         node = new_unary(UniOpKind::Deref, node_add);
@@ -598,6 +595,9 @@ fn is_function(tokenizer: &mut Tokenizer) ->  Result<bool, Box<dyn Error>> {
 }
 
 
+fn is_typename(token :&Token) -> bool {
+    token.ttype == TType::Int || token.ttype == TType::Char
+}
 
 fn new_func(name: String, params :Vec<Obj>, locals :Vec<Obj>, stack_size: u64, body :Ast, return_type: NodeType) -> Obj {
     Obj { name, ntype:return_type.clone(), params, locals, stack_size, body, return_type, is_local: false, is_func: true, offset: 0}
@@ -672,7 +672,7 @@ fn new_gvar(name :String, ntype :NodeType, globals: &mut Frame) {
 
 
 
-fn get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
+fn _get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
     let token = tokenizer.get();
     match token.ttype {
         TType::Identifier(s) => {
@@ -684,6 +684,12 @@ fn get_ident(tokenizer : &mut Tokenizer) -> Result<String, Box<dyn Error>>  {
 }
 
 fn declspec(tokenizer : &mut Tokenizer) -> Result<NodeType, Box<dyn Error>> {
+    let token = tokenizer.get();
+    if token.ttype == TType::Char {
+        tokenizer.consume();
+        return Ok(NodeType{kind: NodeTypeKind::Char, size: 1, len:0, base: None})
+
+    }
     skip(tokenizer, TType::Int)?;
     Ok(NodeType{kind: NodeTypeKind::Int, size: 8, len:0, base: None})
 }
@@ -746,7 +752,7 @@ fn type_suffix(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType,
     Ok(ntype.clone())
 }
 
-fn func_params(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType, Box<dyn Error>> {
+fn _func_params(tokenizer : &mut Tokenizer, ntype: &NodeType) -> Result<NodeType, Box<dyn Error>> {
     let mut token = tokenizer.get();
     let mut first = true;
 
@@ -915,7 +921,7 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
 
     let obj_size_node = node_number(obj_size as i64)?;
     let node_mul = new_node(BinOpKind::Mult, rhs.clone(), obj_size_node);
-    let mut binop= match array_type(lhs)? {
+    let binop= match array_type(lhs)? {
         Some(ntype) => new_node_ntype(BinOpKind::Add, lhs.clone(),  node_mul, ntype),
         _ => new_node(BinOpKind::Add, lhs.clone(),  node_mul)
     };
@@ -939,7 +945,7 @@ fn array_type(ast :&Ast) -> Result<Option<ast::NodeType>, Box<dyn Error>> {
 
 // ASTがArrayなら1次元減らした型を返す。
 // Arrayでない時はNoneを返す。
-fn array_deref(ast :&Ast) -> Result<Option<ast::NodeType>, Box<dyn Error>> {
+fn _array_deref(ast :&Ast) -> Result<Option<ast::NodeType>, Box<dyn Error>> {
     match ast {
         AstKind::LocalVar {name: _, ntype, offset: _ } => {
             if ntype.kind == NodeTypeKind::Array {

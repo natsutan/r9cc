@@ -47,6 +47,7 @@ pub enum UniOpKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NodeTypeKind {
     Int,
+    Char,
     Ptr,
     Func,
     Array,
@@ -114,6 +115,7 @@ impl fmt::Display for NodeType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self.kind {
             NodeTypeKind::Int => "int",
+            NodeTypeKind::Char => "char",
             NodeTypeKind::Ptr => "ptr",
             NodeTypeKind::Array => "arr",
             NodeTypeKind::Func => "fun",

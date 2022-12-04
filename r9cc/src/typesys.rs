@@ -19,7 +19,7 @@ impl fmt::Display for TypeError {
 pub fn is_integer(node :&Ast) -> bool {
     match &node {
         AstKind::Num{n:_, ntype} => {
-            ntype.kind == NodeTypeKind::Int
+            ntype.kind == NodeTypeKind::Int || ntype.kind == NodeTypeKind::Char
         },
         AstKind::LocalVar {name: _, ntype, offset: _ }=> {
             ntype.kind == NodeTypeKind::Int
