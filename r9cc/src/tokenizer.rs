@@ -101,7 +101,7 @@ impl Tokenizer {
             }
 
             match c {
-                ' ' => (),
+                ' ' | '\r'| '\n' | '\t' => (),
                 '+' => self.tokens.push(Token::new(TType::Operator("+".to_string()), self.src_line_num, idx)),
                 '-' => self.tokens.push(Token::new(TType::Operator("-".to_string()), self.src_line_num, idx)),
                 '*' => self.tokens.push(Token::new(TType::Operator("*".to_string()), self.src_line_num, idx)),
