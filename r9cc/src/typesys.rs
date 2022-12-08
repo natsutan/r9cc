@@ -187,8 +187,13 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
                             uniop.set_node_type(*base_type.clone());
                             let btype = *base_type.clone();
                             return Ok(Some(btype));
-
                         }
+                        NodeTypeKind::Str => {
+                            let base_type = NodeType{kind: NodeTypeKind::Char, size: 1, len: 0, base: None};
+                            uniop.set_node_type(base_type.clone());
+                            let ptype = NodeType {kind: NodeTypeKind::Ptr, size:8, len: 0, base:Some(Box::new(base_type))};
+                            return Ok(Some(ptype));
+                        },
                         _ => return Err(Box::new(TypeError { err: format!("invalid pointer dereference b {:?}", ltype) })),
                     }
                 },
@@ -196,6 +201,9 @@ pub fn add_type(node :&mut Ast) -> Result<Option<NodeType>, Box<dyn Error>> {
             }
         },
         AstKind::FunCall {funcname:_, ntype, args:_} => {
+            return Ok(Some(ntype.clone()));
+        }
+        AstKind::CString { val : _, ntype } => {
             return Ok(Some(ntype.clone()));
         }
     }

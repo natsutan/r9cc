@@ -13,6 +13,7 @@ pub enum TType {
     LBracket,
     RBracket,
     Identifier(String),
+    Str(String),
     If,
     Else,
     For,
@@ -79,6 +80,7 @@ impl Tokenizer {
 
         self.src_code.push(input_str.to_string());
         let mut skip = false;
+        let mut read_string_mode = false;
 
         for idx in 0..input_vec.len() {
             let c = input_vec[idx];
@@ -90,6 +92,11 @@ impl Tokenizer {
 
             if skip {
                 skip = false;
+                continue;
+            }
+
+            if read_string_mode && c != '"' {
+                s.push(c);
                 continue;
             }
 
@@ -164,6 +171,20 @@ impl Tokenizer {
                         s = "".to_string();
                     }
                 },
+                '"' => {
+                    match read_string_mode {
+                        true => {
+                            self.tokens.push(Token::new(TType::Str(s.to_string()), self.src_line_num, idx));
+                            s = "".to_string();
+                            read_string_mode = false;
+                        },
+                        false => {
+                            s = "".to_string();
+                            read_string_mode = true;
+                        }
+                    }
+
+                }
                 _ => println!("Tokenize error {}", c),
             }
         }

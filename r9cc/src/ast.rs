@@ -49,6 +49,7 @@ pub enum NodeTypeKind {
     Int,
     Char,
     Ptr,
+    Str,
     Func,
     Array,
     UnFixed,
@@ -66,6 +67,7 @@ pub struct NodeType {
 pub enum AstKind {
     Num{n: i64, ntype :NodeType},
     LocalVar {name: String, ntype: NodeType, offset: i64 },
+    CString {val: String, ntype: NodeType},
     BinOp(BinOp),
     UniOp(UniOp),
     Block { body: Vec<Box<Ast>>},
@@ -85,6 +87,7 @@ pub struct Obj {
     pub return_type: NodeType,
     pub is_local: bool,
     pub is_func: bool,
+    pub is_init_data: bool,
     pub offset: i64,
 }
 
@@ -119,6 +122,7 @@ impl fmt::Display for NodeType {
             NodeTypeKind::Ptr => "ptr",
             NodeTypeKind::Array => "arr",
             NodeTypeKind::Func => "fun",
+            NodeTypeKind::Str => "str",
             NodeTypeKind::UnFixed => "",
         };
         write!(f, "{}", s)
@@ -262,6 +266,10 @@ fn write_node(node :&Ast, file: &mut File, cnt: u64) -> Result<u64, std::io::Err
         }
         AstKind::FunCall {funcname, args: _, ntype: _} => {
             writeln!(file, "{}", format!("{}[label=\"CALL\n{}\"]", self_node_name, funcname))?;
+            return Ok(cnt)
+        }
+        AstKind::CString { val, ntype: _} => {
+            writeln!(file, "{}", format!("{}[label={}]", self_node_name, val))?;
             return Ok(cnt)
         }
 

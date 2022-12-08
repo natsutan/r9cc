@@ -139,7 +139,18 @@ fn emit_data(globals :&Frame, output :&mut File) -> Result<(),  Box<dyn Error>> 
         writeln!(output, "  .data")?;
         writeln!(output, "  .globl {}", var.name)?;
         writeln!(output, "{}:", var.name)?;
-        writeln!(output, "  .zero {}", var.ntype.size)?;
+        if var.is_init_data {
+            let s = match var.body.clone() {
+                AstKind::CString {val, ntype: _} => {
+                    val
+                },
+                _ => return Err(Box::new(CodeGenError{err: format!("invalid init_data {:?}", var)})),
+            };
+            writeln!(output, "  .string \"{}\"", s)?;
+
+        } else {
+            writeln!(output, "  .zero {}", var.ntype.size)?;
+        }
     }
     writeln!(output, "")?;
     Ok(())
@@ -152,6 +163,7 @@ fn emit_text(program :&Program, output :&mut File, dc :&mut GenCnt)-> Result<(),
         }
 
         writeln!(output, ".globl {}", function.name)?;
+        writeln!(output, ".text")?;
         writeln!(output, "{}:", function.name)?;
         // Prologue
         writeln!(output, "  push %rbp")?;       //ベースポインタを保存
@@ -218,7 +230,7 @@ fn gen_addr(node: &Ast, locals: &Vec<Obj>, output : &mut File, dc :&mut GenCnt) 
 fn load(node: &Ast, output : &mut File, _dc :&mut GenCnt) -> Result<(), Box<dyn Error>> {
     match node {
         AstKind::LocalVar { name: _, ntype, offset: _ } => {
-            if ntype.kind == NodeTypeKind::Array {
+            if ntype.kind == NodeTypeKind::Array || ntype.kind == NodeTypeKind::Str {
                 return Ok(())
             }
             if ntype.size == 1 {

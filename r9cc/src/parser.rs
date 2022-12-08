@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fmt;
 use crate::ast;
 use crate::ast::AstKind::LocalVar;
+use crate::ast::AstKind::CString;
 use crate::ast::UniOpKind::Deref;
 use crate::typesys::{add_type, is_integer, is_pointer};
 
@@ -24,6 +25,7 @@ pub struct Parser {
     pub nodes: Program,
     pub locals: Frame,
     pub globals: Frame,
+    pub init_data: Frame
 }
 
 
@@ -33,7 +35,8 @@ impl Parser {
         Parser {
             nodes: vec![],
             locals: vec![],
-            globals: vec![]
+            globals: vec![],
+            init_data: vec![],
         }
     }
 
@@ -199,6 +202,7 @@ fn primary(tokenizer: &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) -
     tokenizer.consume();
     match token.ttype {
         TType::Integer(n) => node_number(n),
+        TType::Str(s) => new_string_literal(s, globals),
         TType::Identifier(s) => {
             let tk = tokenizer.get();
             let name = s.clone();
@@ -395,7 +399,6 @@ fn postfix(tokenizer : &mut Tokenizer, locals: &mut Frame, globals: &mut Frame) 
         let node_add = new_add(&mut node.clone(), &mut idx.clone())?;
         node = new_unary(UniOpKind::Deref, node_add);
         token = tokenizer.get();
-
     }
 
     Ok(node)
@@ -600,7 +603,7 @@ fn is_typename(token :&Token) -> bool {
 }
 
 fn new_func(name: String, params :Vec<Obj>, locals :Vec<Obj>, stack_size: u64, body :Ast, return_type: NodeType) -> Obj {
-    Obj { name, ntype:return_type.clone(), params, locals, stack_size, body, return_type, is_local: false, is_func: true, offset: 0}
+    Obj { name, ntype:return_type.clone(), params, locals, stack_size, body, return_type, is_local: false, is_func: true, is_init_data: false, offset: 0}
 }
 
 
@@ -635,7 +638,6 @@ fn create_param_lvars(tokenizer :&mut Tokenizer) -> Result<Frame, Box<dyn Error>
 
 fn new_lvar(name: String, ntype: NodeType, frame: &mut Frame) -> Result<Ast, Box<dyn Error>> {
     let offset = -(frame.len() as i64 +  1) * 8;
-//    let new_lv = Obj {name: name.clone(), ntype: ntype.clone(), offset};
     let new_lv = Obj{
         name: name.clone(),
         ntype: ntype.clone(),
@@ -646,12 +648,55 @@ fn new_lvar(name: String, ntype: NodeType, frame: &mut Frame) -> Result<Ast, Box
         return_type: ntype.clone(),
         is_local: true,
         is_func: false,
+        is_init_data: false,
         offset: 0
     };
 
 
     frame.push(new_lv);
-    node_variable(name, ntype, offset)
+    let node = node_variable(name, ntype, offset)?;
+    Ok(node)
+}
+
+fn new_unique_name(globals: &Frame) -> String {
+    let id = globals.len();
+    let unique_name = format!(".L..{}", id);
+    unique_name
+}
+
+fn new_anon_gvar(p: String, ntype :&NodeType, globals :&mut Frame) -> Obj {
+    let name = new_unique_name(globals);
+
+    Obj{
+        name: name,
+        ntype: ntype.clone(),
+        params: vec![],
+        locals: vec![],
+        stack_size: 0,
+        body: CString {val: p, ntype: ntype.clone()},
+        return_type: ntype.clone(),
+        is_local: false,
+        is_func: false,
+        is_init_data: true,
+        offset: 0
+    }
+}
+
+fn new_string_literal(p: String, globals :&mut Frame) -> Result<Ast, Box<dyn Error>> {
+    let base_type = NodeType {
+      kind: NodeTypeKind::Char, size:1, len:0, base: None
+    };
+
+    let ntype = NodeType{ kind : NodeTypeKind::Str,
+        size : p.len() + 1,   //add '\0'
+        len : 0,
+        base :Some(Box::new(base_type))
+    };
+    let anon_gver = new_anon_gvar(p, &ntype, globals);
+    globals.push(anon_gver.clone());
+    let name = anon_gver.name;
+
+    node_variable(name, ntype, 0)
 }
 
 fn new_gvar(name :String, ntype :NodeType, globals: &mut Frame) {
@@ -665,6 +710,7 @@ fn new_gvar(name :String, ntype :NodeType, globals: &mut Frame) {
         return_type: ntype.clone(),
         is_local: false,
         is_func: false,
+        is_init_data: false,
         offset: 0
     };
     globals.push(new_gvar);
@@ -895,6 +941,8 @@ fn new_add(l: &mut Ast, r: &mut Ast) -> Result<Ast, Box<dyn Error>>  {
                     Some(b) => b.size,
                     _ => return Err(Box::new(ParseError{err: format!("Array has no base {:?}", lhs)})),
                 }
+            } else if ntype.kind == NodeTypeKind::Str  {
+                1
             } else {
                 ntype.size
             }
@@ -934,6 +982,8 @@ fn array_type(ast :&Ast) -> Result<Option<ast::NodeType>, Box<dyn Error>> {
     match ast {
         AstKind::LocalVar {name: _, ntype, offset: _ } => {
             if ntype.kind == NodeTypeKind::Array {
+                Ok(Some(ntype.clone()))
+            } else if ntype.kind == NodeTypeKind::Str {
                 Ok(Some(ntype.clone()))
             } else {
                 Ok(None)
